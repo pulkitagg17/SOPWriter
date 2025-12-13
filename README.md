@@ -2,8 +2,8 @@
 
 > A powerful Standard Operating Procedure (SOP) generation platform with AI capabilities, email automation, and payment integration.
 
-[![Backend CI/CD](https://github.com/pulkitagg17/SOPWriter/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/pulkitagg17/SOPWriter/actions/workflows/backend-ci.yml)
-[![CodeQL](https://github.com/pulkitagg17/SOPWriter/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/pulkitagg17/SOPWriter/actions/workflows/codeql-analysis.yml)
+[![CI/CD Pipeline](https://github.com/pulkitagg17/SOPWriter/actions/workflows/ci.yml/badge.svg)](https://github.com/pulkitagg17/SOPWriter/actions/workflows/ci.yml)
+[![Security Scanning](https://github.com/pulkitagg17/SOPWriter/actions/workflows/security.yml/badge.svg)](https://github.com/pulkitagg17/SOPWriter/actions/workflows/security.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node Version](https://img.shields.io/badge/node-%3E%3D20.19.0-brightgreen)](https://nodejs.org)
 
@@ -37,11 +37,13 @@
 SOPWriter/
 ├── .github/                    # GitHub Actions workflows
 │   ├── workflows/
-│   │   ├── backend-ci.yml     # Main CI/CD pipeline
-│   │   ├── codeql-analysis.yml # Security scanning
-│   │   ├── dependency-review.yml
-│   │   └── pr-automation.yml
-│   └── README.md
+│   │   ├── ci.yml             # Main CI/CD pipeline (backend + frontend)
+│   │   ├── security.yml       # Security scanning (CodeQL, dependency audit)
+│   │   ├── dependency-review.yml # Dependency vulnerability checks
+│   │   ├── pr-automation.yml  # PR labeling and automation
+│   │   └── release.yml        # Automated release pipeline
+│   ├── README.md              # CI/CD documentation
+│   └── CI_CD_QUICK_REF.md    # Quick reference guide
 ├── sopwriter-backend/          # Backend API service
 │   ├── src/
 │   │   ├── config/            # Configuration files
@@ -287,28 +289,78 @@ docker-compose down
 
 ## 🤖 CI/CD Pipeline
 
-This project uses GitHub Actions for automated testing and deployment.
+This project uses a modern, automated CI/CD pipeline with GitHub Actions.
 
-### Workflows
+### 📋 Pipeline Overview
 
-1. **Backend CI/CD** - Runs on every push
-   - Linting & type checking
-   - Unit & integration tests
-   - Build verification
-   - Security audit
-   - Auto-deployment (main branch)
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Main CI/CD Pipeline                       │
+├─────────────────────────────────────────────────────────────┤
+│  Backend          │  Frontend         │  Deployment         │
+│  ├─ Lint          │  ├─ Lint          │  └─ Production      │
+│  ├─ Type Check    │  ├─ Type Check    │     (main only)     │
+│  ├─ Tests (20,22) │  └─ Build         │                     │
+│  ├─ Coverage      │                   │                     │
+│  ├─ Build         │                   │                     │
+│  └─ Security      │                   │                     │
+└─────────────────────────────────────────────────────────────┘
+```
 
-2. **CodeQL Security Analysis** - Weekly automated scans
-3. **Dependency Review** - On dependency update PRs
-4. **PR Automation** - Auto-labeling and size checks
+### 🔄 Workflows
 
-### Pipeline Triggers
+1. **Main CI/CD** (`ci.yml`) - Runs on every push/PR
+   - ✅ Parallel backend & frontend testing
+   - ✅ Matrix testing (Node 20, 22)
+   - ✅ Code coverage reporting
+   - ✅ Build artifact generation
+   - ✅ Automated deployment on `main`
 
-- ✅ Push to `main` or `develop` branches
-- ✅ Pull requests to `main` or `develop`
-- ✅ Weekly security scans (Mondays)
+2. **Security Scanning** (`security.yml`) - Weekly + on-demand
+   - 🔐 CodeQL analysis (separate backend/frontend)
+   - 🔍 Dependency vulnerability scanning
+   - 🔐 Secret detection with TruffleHog
 
-See [.github/README.md](.github/README.md) for detailed CI/CD documentation.
+3. **Dependency Review** (`dependency-review.yml`) - On dependency PRs
+   - 📦 Vulnerability checks on new dependencies
+   - ⚠️ Fails PRs with moderate+ severity issues
+
+4. **PR Automation** (`pr-automation.yml`) - On all PRs
+   - 🏷️ Auto-labeling based on files changed
+   - 📏 Size calculation (XS to XL)
+   - 👋 Welcome comments with checklist
+   - 📝 Conventional commit validation
+
+5. **Release Pipeline** (`release.yml`) - On version tags
+   - 📦 Automated artifact packaging
+   - 📝 Changelog generation
+   - 🎉 GitHub release creation
+   - 🐳 Docker image publishing (optional)
+
+### ⚡ Quick Start
+
+Run checks locally before pushing:
+```bash
+# Backend
+cd sopwriter-backend
+npm run lint && npm run typecheck && npm test
+
+# Frontend
+cd sopwriter-frontend
+npm run lint && npm run build
+```
+
+### 📚 Documentation
+
+- **Full Guide**: [.github/README.md](.github/README.md)
+- **Quick Reference**: [.github/CI_CD_QUICK_REF.md](.github/CI_CD_QUICK_REF.md)
+
+### 🔒 Security
+
+- ✅ Weekly CodeQL scans
+- ✅ Automated dependency audits
+- ✅ Secret scanning on commits
+- ✅ All scans visible in GitHub Security tab
 
 ---
 

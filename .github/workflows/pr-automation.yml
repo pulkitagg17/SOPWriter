@@ -2,32 +2,35 @@ name: PR Automation
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - 'sopwriter-backend/**'
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
 
 jobs:
-  label:
-    name: Auto Label PR
+  auto-label:
+    name: 🏷️ Auto Label PR
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
 
     steps:
-      - name: Label backend PRs
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏷️ Label based on files changed
         uses: actions/labeler@v5
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          configuration-path: .github/labeler.yml
 
-  size:
-    name: Calculate PR Size
+  calculate-size:
+    name: 📏 Calculate PR Size
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
 
     steps:
-      - name: Add size label
+      - name: 📏 Add size label
         uses: codelytv/pr-size-labeler@v1
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -41,21 +44,102 @@ jobs:
           l_max_size: 1000
           xl_label: 'size/xl'
 
-  comment:
-    name: Welcome Comment
+  welcome-comment:
+    name: 👋 Welcome Comment
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
     if: github.event.action == 'opened'
 
     steps:
-      - name: Add welcome comment
+      - name: 💬 Add welcome comment
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `👋 Thanks for opening this PR!\n\n⚡ The CI/CD pipeline will run automatically. Please ensure:\n- ✅ All tests pass\n- ✅ Code is properly formatted\n- ✅ No linting errors\n\nThe build status will be updated here shortly.`
-            })
+              issue_number: context.issue.number,
+            });
+
+            // Only comment if no bot comments exist yet
+            const botComment = comments.find(comment => comment.user.type === 'Bot');
+            if (!botComment) {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## 👋 Thanks for opening this PR!\n\n` +
+                      `⚡ **The CI/CD pipeline will run automatically.**\n\n` +
+                      `### 📋 Pre-merge Checklist\n` +
+                      `Please ensure:\n` +
+                      `- ✅ All tests pass\n` +
+                      `- ✅ Code is properly formatted\n` +
+                      `- ✅ No linting errors\n` +
+                      `- ✅ No security vulnerabilities introduced\n` +
+                      `- ✅ PR description clearly explains changes\n\n` +
+                      `### 🤖 Automated Checks\n` +
+                      `The following checks will run:\n` +
+                      `- 🔍 **Linting** - ESLint & Prettier\n` +
+                      `- 🧪 **Testing** - Unit & Integration tests\n` +
+                      `- 🏗️ **Build** - Production build verification\n` +
+                      `- 🔒 **Security** - Dependency & vulnerability scanning\n\n` +
+                      `The build status will be updated here shortly. Good luck! 🚀`
+              });
+            }
+
+  check-conventional-commits:
+    name: 📝 Check Commit Messages
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📝 Validate commit messages
+        run: |
+          echo "🔍 Checking commit message format..."
+
+          # Get commits in this PR
+          COMMITS=$(git log --format=%s ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+
+          # Check if commits follow conventional format (feat:, fix:, docs:, etc.)
+          INVALID_COMMITS=""
+          while IFS= read -r commit; do
+            if ! echo "$commit" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .+"; then
+              INVALID_COMMITS="$INVALID_COMMITS\n- $commit"
+            fi
+          done <<< "$COMMITS"
+
+          if [ -n "$INVALID_COMMITS" ]; then
+            echo "⚠️ Some commits don't follow conventional commit format:"
+            echo -e "$INVALID_COMMITS"
+            echo ""
+            echo "ℹ️ Consider using conventional commits: feat:, fix:, docs:, etc."
+            echo "This won't fail the build, but it's recommended for better changelog generation."
+          else
+            echo "✅ All commits follow conventional format!"
+          fi
+        continue-on-error: true
+
+  pr-status:
+    name: 📊 PR Status Summary
+    runs-on: ubuntu-latest
+    needs: [auto-label, calculate-size, welcome-comment, check-conventional-commits]
+    if: always() && (github.event.action == 'opened' || github.event.action == 'synchronize')
+
+    steps:
+      - name: 📊 Summary
+        run: |
+          echo "================================================"
+          echo "           PR AUTOMATION COMPLETED"
+          echo "================================================"
+          echo ""
+          echo "Auto Label:      ${{ needs.auto-label.result }}"
+          echo "Size Calculation: ${{ needs.calculate-size.result }}"
+          echo "Welcome Comment:  ${{ needs.welcome-comment.result }}"
+          echo "Commit Check:     ${{ needs.check-conventional-commits.result }}"
+          echo ""
+          echo "✅ PR automation tasks completed!"
+          echo "================================================"

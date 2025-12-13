@@ -6,8 +6,8 @@ on:
       - main
       - develop
     paths:
-      - 'sopwriter-backend/package.json'
-      - 'sopwriter-backend/package-lock.json'
+      - '**/package.json'
+      - '**/package-lock.json'
 
 permissions:
   contents: read
@@ -15,17 +15,34 @@ permissions:
 
 jobs:
   dependency-review:
-    name: Review Dependencies
+    name: 📦 Review Dependency Changes
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      - name: Dependency Review
+      - name: 🔍 Dependency Review
         uses: actions/dependency-review-action@v4
         with:
-          base-ref: ${{ github.event.pull_request.base.sha }}
-          head-ref: ${{ github.event.pull_request.head.sha }}
           fail-on-severity: moderate
+          fail-on-scopes: runtime
           comment-summary-in-pr: always
+          warn-only: false
+          license-check: true
+          vulnerability-check: true
+
+      - name: 💬 Add PR Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 📦 Dependency Review Completed\n\n` +
+                    `✅ All dependency changes have been reviewed for security vulnerabilities.\n\n` +
+                    `**Note:** Dependencies with moderate or higher severity vulnerabilities will fail this check.\n\n` +
+                    `Please review the details above and ensure all dependencies are safe to merge.`
+            })
+        if: success()

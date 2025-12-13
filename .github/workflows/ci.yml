@@ -1,0 +1,336 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same workflow
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  CACHE_NAME: 'node-modules'
+
+jobs:
+  # ==========================================
+  # BACKEND JOBS
+  # ==========================================
+
+  backend-lint:
+    name: 🔍 Backend - Lint & Type Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./sopwriter-backend
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: sopwriter-backend/package-lock.json
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Run ESLint
+        run: npm run lint
+
+      - name: 📝 Check TypeScript types
+        run: npm run typecheck
+
+      - name: ✨ Check code formatting
+        run: npx prettier --check "src/**/*.ts"
+
+  backend-test:
+    name: 🧪 Backend - Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    needs: backend-lint
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    defaults:
+      run:
+        working-directory: ./sopwriter-backend
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'npm'
+          cache-dependency-path: sopwriter-backend/package-lock.json
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🧪 Run unit tests
+        run: npm run test:unit
+        env:
+          NODE_ENV: test
+
+      - name: 🔗 Run integration tests
+        run: npm run test:integration
+        env:
+          NODE_ENV: test
+
+      - name: 📊 Generate coverage report
+        run: npm run test:coverage
+        env:
+          NODE_ENV: test
+        if: matrix.node == '20'
+
+      - name: 📤 Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./sopwriter-backend/coverage/coverage-final.json
+          flags: backend
+          name: backend-node-${{ matrix.node }}
+          fail_ci_if_error: false
+        if: matrix.node == '20'
+        continue-on-error: true
+
+  backend-build:
+    name: 🏗️ Backend - Build
+    runs-on: ubuntu-latest
+    needs: [backend-lint, backend-test]
+    defaults:
+      run:
+        working-directory: ./sopwriter-backend
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: sopwriter-backend/package-lock.json
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🏗️ Build application
+        run: npm run build
+
+      - name: 📤 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build
+          path: sopwriter-backend/dist
+          retention-days: 7
+          if-no-files-found: error
+
+  backend-security:
+    name: 🔒 Backend - Security Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./sopwriter-backend
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: sopwriter-backend/package-lock.json
+
+      - name: 🔍 Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: 📦 Check for outdated dependencies
+        run: npm outdated || true
+
+  # ==========================================
+  # FRONTEND JOBS
+  # ==========================================
+
+  frontend-lint:
+    name: 🎨 Frontend - Lint & Type Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./sopwriter-frontend
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: sopwriter-frontend/package-lock.json
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Run ESLint
+        run: npm run lint
+
+      - name: ✨ Build TypeScript (type check)
+        run: npx tsc -b --noEmit
+
+  frontend-build:
+    name: 🎨 Frontend - Build
+    runs-on: ubuntu-latest
+    needs: frontend-lint
+    defaults:
+      run:
+        working-directory: ./sopwriter-frontend
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: sopwriter-frontend/package-lock.json
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🏗️ Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: 📤 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: sopwriter-frontend/dist
+          retention-days: 7
+          if-no-files-found: error
+
+  # ==========================================
+  # DEPLOYMENT JOB
+  # ==========================================
+
+  deploy:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [backend-build, frontend-build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://your-production-url.com
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📥 Download backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: ./backend-dist
+
+      - name: 📥 Download frontend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: ./frontend-dist
+
+      - name: 🚀 Deploy notification
+        run: |
+          echo "🚀 Ready to deploy to production!"
+          echo "Backend build: $(ls -lh backend-dist)"
+          echo "Frontend build: $(ls -lh frontend-dist)"
+          echo ""
+          echo "⚠️ Configure your deployment steps here:"
+          echo "   - Render: https://render.com"
+          echo "   - Vercel: https://vercel.com"
+          echo "   - Netlify: https://netlify.com"
+          echo "   - AWS/Azure/GCP: Use your cloud provider's CLI"
+
+      # 🔧 Uncomment and configure your deployment method below:
+
+      # Example: Deploy to Render
+      # - name: 🚀 Deploy Backend to Render
+      #   uses: johnbeynon/render-deploy-action@v0.0.8
+      #   with:
+      #     service-id: ${{ secrets.RENDER_BACKEND_SERVICE_ID }}
+      #     api-key: ${{ secrets.RENDER_API_KEY }}
+
+      # Example: Deploy Frontend to Vercel
+      # - name: 🚀 Deploy Frontend to Vercel
+      #   uses: amondnet/vercel-action@v25
+      #   with:
+      #     vercel-token: ${{ secrets.VERCEL_TOKEN }}
+      #     vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+      #     vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+      #     working-directory: ./frontend-dist
+
+      # Example: Deploy to Heroku
+      # - name: 🚀 Deploy to Heroku
+      #   uses: akhileshns/heroku-deploy@v3.13.15
+      #   with:
+      #     heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+      #     heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
+      #     heroku_email: ${{ secrets.HEROKU_EMAIL }}
+
+  # ==========================================
+  # STATUS CHECK
+  # ==========================================
+
+  status-check:
+    name: ✅ CI/CD Status
+    runs-on: ubuntu-latest
+    needs: [backend-build, frontend-build, backend-security]
+    if: always()
+
+    steps:
+      - name: 📊 Check overall status
+        run: |
+          echo "================================================"
+          echo "           CI/CD PIPELINE RESULTS"
+          echo "================================================"
+          echo ""
+          echo "Backend Lint:     ${{ needs.backend-lint.result }}"
+          echo "Backend Test:     ${{ needs.backend-test.result }}"
+          echo "Backend Build:    ${{ needs.backend-build.result }}"
+          echo "Backend Security: ${{ needs.backend-security.result }}"
+          echo "Frontend Lint:    ${{ needs.frontend-lint.result }}"
+          echo "Frontend Build:   ${{ needs.frontend-build.result }}"
+          echo ""
+
+          # Check if all critical jobs passed
+          if [ "${{ needs.backend-build.result }}" == "success" ] && \
+             [ "${{ needs.frontend-build.result }}" == "success" ]; then
+            echo "✅ CI/CD Pipeline PASSED!"
+            echo "================================================"
+            exit 0
+          else
+            echo "❌ CI/CD Pipeline FAILED!"
+            echo "================================================"
+            exit 1
+          fi

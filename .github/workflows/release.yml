@@ -1,0 +1,209 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  create-release:
+    name: 🎉 Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            sopwriter-backend/package-lock.json
+            sopwriter-frontend/package-lock.json
+
+      # Backend Build
+      - name: 📦 Install backend dependencies
+        working-directory: ./sopwriter-backend
+        run: npm ci
+
+      - name: 🏗️ Build backend
+        working-directory: ./sopwriter-backend
+        run: npm run build
+
+      - name: 📦 Create backend archive
+        run: |
+          cd sopwriter-backend/dist
+          tar -czf ../../backend-${{ github.ref_name }}.tar.gz .
+          cd ../..
+
+      # Frontend Build
+      - name: 📦 Install frontend dependencies
+        working-directory: ./sopwriter-frontend
+        run: npm ci
+
+      - name: 🏗️ Build frontend
+        working-directory: ./sopwriter-frontend
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: 📦 Create frontend archive
+        run: |
+          cd sopwriter-frontend/dist
+          tar -czf ../../frontend-${{ github.ref_name }}.tar.gz .
+          cd ../..
+
+      # Generate Changelog
+      - name: 📝 Generate changelog
+        id: changelog
+        run: |
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "📝 First release - generating full changelog"
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            echo "📝 Generating changelog since $PREVIOUS_TAG"
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          # Save changelog to file
+          echo "$CHANGELOG" > CHANGELOG.txt
+
+          # Output for GitHub
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # Create GitHub Release
+      - name: 🎉 Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## 🚀 What's New in ${{ github.ref_name }}
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ## 📦 Downloads
+
+            - **Backend**: `backend-${{ github.ref_name }}.tar.gz`
+            - **Frontend**: `frontend-${{ github.ref_name }}.tar.gz`
+
+            ## 📚 Documentation
+
+            See the [README](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/README.md) for installation and usage instructions.
+
+            ---
+
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.changelog.outputs.previous }}...${{ github.ref_name }}
+          files: |
+            backend-${{ github.ref_name }}.tar.gz
+            frontend-${{ github.ref_name }}.tar.gz
+            CHANGELOG.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker-release:
+    name: 🐳 Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑 Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Extract metadata
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/backend
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 🏷️ Extract metadata (frontend)
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/frontend
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # Note: Add Dockerfiles if needed
+      # - name: 🐳 Build and push backend image
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: ./sopwriter-backend
+      #     push: true
+      #     tags: ${{ steps.meta-backend.outputs.tags }}
+      #     labels: ${{ steps.meta-backend.outputs.labels }}
+      #     cache-from: type=gha
+      #     cache-to: type=gha,mode=max
+
+      # - name: 🐳 Build and push frontend image
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: ./sopwriter-frontend
+      #     push: true
+      #     tags: ${{ steps.meta-frontend.outputs.tags }}
+      #     labels: ${{ steps.meta-frontend.outputs.labels }}
+      #     cache-from: type=gha
+      #     cache-to: type=gha,mode=max
+
+      - name: 📝 Docker build placeholder
+        run: |
+          echo "🐳 Docker image build is ready to be configured"
+          echo "Uncomment the docker build steps above and add Dockerfiles to enable"
+
+  release-summary:
+    name: 📊 Release Summary
+    runs-on: ubuntu-latest
+    needs: [create-release, docker-release]
+    if: always()
+
+    steps:
+      - name: 📊 Summary
+        run: |
+          echo "================================================"
+          echo "           RELEASE PIPELINE RESULTS"
+          echo "================================================"
+          echo ""
+          echo "Create Release: ${{ needs.create-release.result }}"
+          echo "Docker Release: ${{ needs.docker-release.result }}"
+          echo ""
+          echo "✅ Release ${{ github.ref_name }} completed!"
+          echo "================================================"

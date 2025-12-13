@@ -19,7 +19,7 @@ const ServiceSchema = new Schema<IService>(
       type: String,
       required: true,
       enum: ['documents', 'profile', 'visa'],
-      index: true
+      index: true,
     },
     price: { type: Number, required: true, min: 0 },
     description: { type: String },

@@ -1,0 +1,36 @@
+# Auto-labeling configuration for pull requests
+
+backend:
+  - changed-files:
+    - any-glob-to-any-file: 'sopwriter-backend/**/*'
+
+frontend:
+  - changed-files:
+    - any-glob-to-any-file: 'sopwriter-frontend/**/*'
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file: '**/package.json'
+    - any-glob-to-any-file: '**/package-lock.json'
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file: '**/*.md'
+    - any-glob-to-any-file: 'docs/**/*'
+
+ci-cd:
+  - changed-files:
+    - any-glob-to-any-file: '.github/workflows/**/*'
+    - any-glob-to-any-file: '.github/**/*'
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file: '**/*.test.ts'
+    - any-glob-to-any-file: '**/*.spec.ts'
+    - any-glob-to-any-file: '**/tests/**/*'
+
+security:
+  - changed-files:
+    - any-glob-to-any-file: '**/SECURITY*.md'
+    - any-glob-to-any-file: '**/*security*'
+    - any-glob-to-any-file: '**/*auth*'

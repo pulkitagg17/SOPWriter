@@ -1,0 +1,61 @@
+name: PR Automation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'sopwriter-backend/**'
+
+jobs:
+  label:
+    name: Auto Label PR
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Label backend PRs
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+
+  size:
+    name: Calculate PR Size
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Add size label
+        uses: codelytv/pr-size-labeler@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          xs_label: 'size/xs'
+          xs_max_size: 10
+          s_label: 'size/s'
+          s_max_size: 100
+          m_label: 'size/m'
+          m_max_size: 500
+          l_label: 'size/l'
+          l_max_size: 1000
+          xl_label: 'size/xl'
+
+  comment:
+    name: Welcome Comment
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    if: github.event.action == 'opened'
+
+    steps:
+      - name: Add welcome comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `👋 Thanks for opening this PR!\n\n⚡ The CI/CD pipeline will run automatically. Please ensure:\n- ✅ All tests pass\n- ✅ Code is properly formatted\n- ✅ No linting errors\n\nThe build status will be updated here shortly.`
+            })

@@ -23,7 +23,9 @@ export async function loginHandler(req: Request, res: Response) {
     return res.json({ success: true, token });
   }
 
-  return res.status(401).json({ success: false, code: 'AUTH_FAILED', message: 'Invalid credentials' });
+  return res
+    .status(401)
+    .json({ success: false, code: 'AUTH_FAILED', message: 'Invalid credentials' });
 }
 
 export async function listLeads(req: Request, res: Response) {
@@ -57,9 +59,9 @@ export async function listLeads(req: Request, res: Response) {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit)
-      }
-    }
+        totalPages: Math.ceil(total / limit),
+      },
+    },
   });
 }
 
@@ -93,11 +95,11 @@ export async function listTransactions(req: Request, res: Response) {
       ...d,
       lead: lead
         ? {
-          _id: lead._id,
-          name: lead.name,
-          email: lead.email,
-          service: lead.service,
-        }
+            _id: lead._id,
+            name: lead.name,
+            email: lead.email,
+            service: lead.service,
+          }
         : null,
     };
   });
@@ -144,15 +146,17 @@ export async function verifyTransactionHandler(req: Request, res: Response) {
     // Notify user (lead)
     if (result.lead) {
       // Fire-and-forget email to prevent blocking the response
-      mail.sendUserVerification(result.lead.email, {
-        name: result.lead.name,
-        leadId: result.lead._id.toString(),
-        status: action === 'VERIFY' ? 'VERIFIED' : 'REJECTED',
-        note,
-        appUrl: process.env.APP_BASE_URL || 'http://localhost:4000',
-      }).catch(emailErr => {
-        console.warn('Background email failed:', emailErr);
-      });
+      mail
+        .sendUserVerification(result.lead.email, {
+          name: result.lead.name,
+          leadId: result.lead._id.toString(),
+          status: action === 'VERIFY' ? 'VERIFIED' : 'REJECTED',
+          note,
+          appUrl: process.env.APP_BASE_URL || 'http://localhost:4000',
+        })
+        .catch((emailErr) => {
+          console.warn('Background email failed:', emailErr);
+        });
     }
 
     return res.json({

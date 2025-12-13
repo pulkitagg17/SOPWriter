@@ -30,7 +30,9 @@ export async function declareTransactionHandler(req: Request, res: Response) {
         appUrl: process.env.APP_BASE_URL || 'http://localhost:5173',
       });
     } catch (emailErr) {
-      console.warn('Notice: Admin notification email failed (this is expected if using placeholder credentials). Lead & Transaction saved successfully.');
+      console.warn(
+        'Notice: Admin notification email failed (this is expected if using placeholder credentials). Lead & Transaction saved successfully.'
+      );
     }
 
     return res.json({ success: true, data: { transactionId: tx._id } });

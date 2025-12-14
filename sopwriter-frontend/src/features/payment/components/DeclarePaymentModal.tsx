@@ -33,43 +33,46 @@ export default function DeclarePaymentModal({ isOpen, onClose, leadId }: Declare
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Declare Payment</DialogTitle>
-                    <DialogDescription>
+                    <DialogTitle className="text-lg sm:text-xl">Declare Payment</DialogTitle>
+                    <DialogDescription className="text-xs sm:text-sm">
                         Enter the Transaction ID / UTR Number from your payment app to verify your submission.
                     </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-4 py-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="txnId">Transaction ID / UTR <span className="text-destructive">*</span></Label>
+                <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 py-2 sm:py-4">
+                    <div className="space-y-1.5 sm:space-y-2">
+                        <Label htmlFor="txnId" className="text-sm">Transaction ID / UTR <span className="text-destructive">*</span></Label>
                         <Input
                             id="txnId"
                             placeholder="e.g. 123456789012"
                             value={transactionId}
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTransactionId(e.target.value)}
                             required
+                            className="text-base"
                         />
                     </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="remark">Remark (Optional)</Label>
+                    <div className="space-y-1.5 sm:space-y-2">
+                        <Label htmlFor="remark" className="text-sm">Remark (Optional)</Label>
                         <Textarea
                             id="remark"
                             placeholder="Any additional details..."
                             value={remark}
                             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setRemark(e.target.value)}
+                            rows={3}
+                            className="text-base"
                         />
                     </div>
 
-                    <DialogFooter>
-                        <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+                    <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0 pt-2">
+                        <Button type="button" variant="outline" onClick={onClose} disabled={isLoading} className="w-full sm:w-auto">
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={isLoading || !transactionId.trim()}>
+                        <Button type="submit" disabled={isLoading || !transactionId.trim()} className="w-full sm:w-auto">
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Submit Verification
+                            Submit
                         </Button>
                     </DialogFooter>
                 </form>

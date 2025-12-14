@@ -49,11 +49,11 @@ export default function StepService({
     }, [canProceed, onNext]);
 
     return (
-        <div className="space-y-8 h-full flex flex-col">
+        <div className="space-y-4 sm:space-y-8 h-full flex flex-col">
             {/* Title */}
-            <div className="space-y-2">
-                <h2 className="text-2xl font-bold">Select the specific service you need</h2>
-                <p className="text-muted-foreground">We offer a range of specialized services in this category</p>
+            <div className="space-y-1 sm:space-y-2">
+                <h2 className="text-xl sm:text-2xl font-bold">Select the specific service you need</h2>
+                <p className="text-sm sm:text-base text-muted-foreground">We offer a range of specialized services in this category</p>
             </div>
 
             {/* Dropdown */}
@@ -97,7 +97,7 @@ export default function StepService({
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.2 }}
-                        className="bg-muted/30 p-6 rounded-xl border border-border/50 h-full"
+                        className="bg-muted/30 p-4 sm:p-6 rounded-xl border border-border/50 h-full"
                         role="region"
                         aria-live="polite"
                         aria-label="Service details"
@@ -128,12 +128,12 @@ export default function StepService({
             </div>
 
             {/* Navigation */}
-            <div className="flex justify-between gap-4 pt-4 mt-auto">
+            <div className="flex justify-between gap-3 sm:gap-4 pt-2 sm:pt-4 mt-auto">
                 <Button
                     variant="outline"
                     onClick={onBack}
                     size="lg"
-                    className="px-8"
+                    className="px-4 sm:px-8 flex-1 sm:flex-none"
                     aria-label="Go back to previous step"
                 >
                     Back
@@ -142,7 +142,7 @@ export default function StepService({
                     onClick={onNext}
                     disabled={!canProceed}
                     size="lg"
-                    className="px-8 shadow-md"
+                    className="px-4 sm:px-8 shadow-md flex-1 sm:flex-none"
                     aria-label="Continue to next step"
                     onKeyDown={handleKeyDown}
                 >

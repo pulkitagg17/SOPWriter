@@ -13,9 +13,9 @@ export default function WizardProgress({ step, onStepClick }: WizardProgressProp
   ];
 
   return (
-    <div className="flex items-center justify-between relative w-full mb-8">
-      {/* Progress line - centered with the circles (h-10 = 40px, so top-5 = 20px) */}
-      <div className="absolute left-0 right-0 top-5 h-0.5 bg-muted -z-10 mx-4" />
+    <div className="flex items-center justify-between relative w-full mb-4 sm:mb-8">
+      {/* Progress line - centered with the circles */}
+      <div className="absolute left-0 right-0 top-4 sm:top-5 h-0.5 bg-muted -z-10 mx-4" />
 
       {steps.map((s) => {
         const isActive = step === s.id;
@@ -31,25 +31,25 @@ export default function WizardProgress({ step, onStepClick }: WizardProgressProp
             aria-current={isActive ? "step" : undefined}
           >
             <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 transition-all border-2 font-semibold text-sm z-10 ${isCompleted
-                  ? "bg-primary border-primary text-primary-foreground"
-                  : isActive
-                    ? "bg-background border-primary text-primary ring-4 ring-primary/20"
-                    : "bg-background border-muted text-muted-foreground"
+              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 sm:mb-2 transition-all border-2 font-semibold text-xs sm:text-sm z-10 ${isCompleted
+                ? "bg-primary border-primary text-primary-foreground"
+                : isActive
+                  ? "bg-background border-primary text-primary ring-2 sm:ring-4 ring-primary/20"
+                  : "bg-background border-muted text-muted-foreground"
                 }`}
             >
               {isCompleted ? (
-                <Check className="w-5 h-5" />
+                <Check className="w-4 h-4 sm:w-5 sm:h-5" />
               ) : (
                 <span>{s.id + 1}</span>
               )}
             </div>
             <span
-              className={`text-sm font-medium transition-colors ${isActive
-                  ? "text-primary"
-                  : isCompleted
-                    ? "text-foreground"
-                    : "text-muted-foreground"
+              className={`text-xs sm:text-sm font-medium transition-colors ${isActive
+                ? "text-primary"
+                : isCompleted
+                  ? "text-foreground"
+                  : "text-muted-foreground"
                 }`}
             >
               {s.title}

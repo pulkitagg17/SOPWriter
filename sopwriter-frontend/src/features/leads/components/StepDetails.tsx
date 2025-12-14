@@ -107,17 +107,17 @@ export default function StepDetails({
     }, [handleSubmit]);
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-4 sm:space-y-8">
             {/* Title */}
-            <div className="space-y-2">
-                <h2 className="text-2xl font-bold">Your details</h2>
-                <p className="text-muted-foreground">
+            <div className="space-y-1 sm:space-y-2">
+                <h2 className="text-xl sm:text-2xl font-bold">Your details</h2>
+                <p className="text-sm sm:text-base text-muted-foreground">
                     We'll use this information to get in touch with you
                 </p>
             </div>
 
             {/* Form - Single Column */}
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
                 {/* Name */}
                 <div className="space-y-2">
                     <label
@@ -255,11 +255,11 @@ export default function StepDetails({
             </div>
 
             {/* Navigation */}
-            <div className="flex gap-4 pt-4">
+            <div className="flex gap-3 sm:gap-4 pt-2 sm:pt-4">
                 <Button
                     variant="outline"
                     onClick={onBack}
-                    className="flex-1 py-6 text-lg rounded-xl hover:bg-secondary/80 border-2"
+                    className="flex-1 py-4 sm:py-6 text-base sm:text-lg rounded-xl hover:bg-secondary/80 border-2"
                     aria-label="Go back to previous step"
                 >
                     Back
@@ -267,17 +267,17 @@ export default function StepDetails({
                 <Button
                     onClick={handleSubmit}
                     disabled={isSubmitting}
-                    className="flex-1 py-6 text-lg bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    className="flex-1 py-4 sm:py-6 text-base sm:text-lg bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                     aria-label="Submit your request"
                     onKeyDown={handleKeyDown}
                 >
                     {isSubmitting ? (
                         <>
-                            <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
+                            <Loader2 className="mr-2 h-4 w-4 sm:h-5 sm:w-5 animate-spin" aria-hidden="true" />
                             Submitting...
                         </>
                     ) : (
-                        "Submit Request"
+                        "Submit"
                     )}
                 </Button>
             </div>

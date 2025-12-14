@@ -26,7 +26,7 @@ const steps = [
 
 export default function HowItWorksSection({ fadeUp, staggerContainer }: HowItWorksSectionProps) {
   return (
-    <section id="how-it-works" className="py-24 lg:py-32">
+    <section id="how-it-works" className="py-12 sm:py-16 lg:py-32 scroll-mt-20">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         {/* Section Header */}
         <motion.div
@@ -34,7 +34,7 @@ export default function HowItWorksSection({ fadeUp, staggerContainer }: HowItWor
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
           variants={fadeUp}
-          className="text-center mb-20"
+          className="text-center mb-10 sm:mb-16 lg:mb-20"
         >
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold">
             How It Works
@@ -71,7 +71,7 @@ export default function HowItWorksSection({ fadeUp, staggerContainer }: HowItWor
 
         {/* Mobile: Vertical Steps with Scroll Effect */}
         <div className="md:hidden">
-          <div className="space-y-12">
+          <div className="space-y-8">
             {steps.map((item, i) => (
               <motion.div
                 key={i}

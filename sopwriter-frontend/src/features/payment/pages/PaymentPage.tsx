@@ -63,10 +63,10 @@ export default function Payment() {
     const paymentStatus = getPaymentStatusInfo(lead);
 
     return (
-        <div className="min-h-screen bg-background relative flex flex-col items-center justify-center p-4 lg:p-8 overflow-hidden font-sans">
+        <div className="min-h-screen bg-background relative flex flex-col items-center justify-start lg:justify-center p-3 sm:p-4 lg:p-8 overflow-hidden font-sans pt-4 sm:pt-6 lg:pt-8">
             {/* Background Ambient Effects */}
-            <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-primary/10 rounded-full blur-[128px] pointer-events-none" />
-            <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-600/5 rounded-full blur-[128px] pointer-events-none" />
+            <div className="absolute top-[-20%] left-[-10%] w-[400px] sm:w-[600px] h-[400px] sm:h-[600px] bg-primary/10 rounded-full blur-[128px] pointer-events-none" />
+            <div className="absolute bottom-[-20%] right-[-10%] w-[400px] sm:w-[600px] h-[400px] sm:h-[600px] bg-blue-600/5 rounded-full blur-[128px] pointer-events-none" />
 
             {/* Payment Status Banner */}
             {paymentStatus && (
@@ -74,7 +74,7 @@ export default function Payment() {
             )}
 
             {/* Main Glass Card */}
-            <div className="relative w-full max-w-5xl bg-card/60 backdrop-blur-2xl border border-white/5 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col lg:flex-row">
+            <div className="relative w-full max-w-5xl bg-card/60 backdrop-blur-2xl border border-white/5 rounded-2xl sm:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col lg:flex-row">
                 <OrderDetailsPanel
                     leadId={leadId}
                     leadDetails={lead}

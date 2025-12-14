@@ -13,9 +13,9 @@ const startServer = async (): Promise<void> => {
 
     const app = createApp();
 
-    server = app.listen(config_vars.port, () => {
+    server = app.listen(config_vars.port, '0.0.0.0', () => {
       logger.info(
-        { port: config_vars.port, env: config_vars.nodeEnv },
+        { port: config_vars.port, env: config_vars.nodeEnv, host: '0.0.0.0' },
         'Server started successfully'
       );
     });

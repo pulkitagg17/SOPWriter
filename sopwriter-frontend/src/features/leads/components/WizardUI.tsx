@@ -54,8 +54,8 @@ export default function WizardUI({
     <div className="max-w-4xl mx-auto">
       <WizardProgress step={step} onStepClick={onStepClick} />
 
-      <div className="relative mt-8">
-        <Card className="p-8 lg:p-12 border border-border/50 shadow-xl bg-card/50 backdrop-blur-sm overflow-hidden min-h-[500px]">
+      <div className="relative mt-4 sm:mt-8">
+        <Card className="p-4 sm:p-6 lg:p-12 border border-border/50 shadow-xl bg-card/50 backdrop-blur-sm overflow-hidden min-h-[400px] sm:min-h-[500px]">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={step}

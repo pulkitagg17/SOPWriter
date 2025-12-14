@@ -54,14 +54,14 @@ export default function TrackApplicationModal({ isOpen, onClose }: TrackApplicat
                 onClose();
             }
         }}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Track Application</DialogTitle>
                     <DialogDescription>
                         Enter your Reference ID (Lead ID) to check status or complete payment.
                     </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                <form onSubmit={handleSubmit} className="space-y-3 py-2">
                     <div className="space-y-2">
                         <Input
                             placeholder="e.g. 64f2a..."
@@ -72,29 +72,28 @@ export default function TrackApplicationModal({ isOpen, onClose }: TrackApplicat
                             }}
                             required
                             disabled={isLoading}
+                            className="text-base"
                         />
                         {error && (
                             <p className="text-sm text-destructive">{error}</p>
                         )}
                     </div>
-                    <div className="flex flex-col sm:justify-between sm:flex-row gap-4">
-                        <p className="text-xs text-muted-foreground self-center">
-                            Lost your ID? Check the <strong>confirmation email</strong> we sent you.
-                        </p>
-                        <Button type="submit" disabled={isLoading}>
-                            {isLoading ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Tracking...
-                                </>
-                            ) : (
-                                <>
-                                    <Search className="mr-2 h-4 w-4" />
-                                    Track
-                                </>
-                            )}
-                        </Button>
-                    </div>
+                    <Button type="submit" disabled={isLoading} className="w-full">
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Tracking...
+                            </>
+                        ) : (
+                            <>
+                                <Search className="mr-2 h-4 w-4" />
+                                Track Application
+                            </>
+                        )}
+                    </Button>
+                    <p className="text-xs text-muted-foreground text-center pt-1">
+                        Lost your ID? Check the <strong>confirmation email</strong> we sent you.
+                    </p>
                 </form>
             </DialogContent>
         </Dialog>

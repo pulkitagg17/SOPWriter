@@ -70,9 +70,9 @@ export default function StepCategory({ wizard, onNext }: StepCategoryProps) {
 
     return (
         <div className="space-y-6">
-            <div className="space-y-2 mb-8">
-                <h2 className="text-2xl font-bold">Choose your requirement</h2>
-                <p className="text-muted-foreground">
+            <div className="space-y-1 sm:space-y-2 mb-4 sm:mb-8">
+                <h2 className="text-xl sm:text-2xl font-bold">Choose your requirement</h2>
+                <p className="text-sm sm:text-base text-muted-foreground">
                     Select the category that matches your needs
                 </p>
             </div>
@@ -93,7 +93,7 @@ export default function StepCategory({ wizard, onNext }: StepCategoryProps) {
                             <button
                                 onClick={() => handleSelect(c.key)}
                                 onKeyDown={(e) => handleKeyDown(e, c.key)}
-                                className={`cursor-pointer group relative w-full text-left p-6 border-2 rounded-xl transition-all duration-300 flex items-center gap-6
+                                className={`cursor-pointer group relative w-full text-left p-4 sm:p-6 border-2 rounded-xl transition-all duration-300 flex items-center gap-4 sm:gap-6
                                 ${isSelected
                                         ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
                                         : "border-border hover:border-primary/50 hover:bg-muted/50"
@@ -102,13 +102,13 @@ export default function StepCategory({ wizard, onNext }: StepCategoryProps) {
                                 aria-checked={isSelected}
                                 tabIndex={isSelected ? 0 : -1}
                             >
-                                <div className={`p-4 rounded-xl ${c.bg} ${c.color} transition-transform group-hover:scale-110`} aria-hidden="true">
-                                    <c.icon className="w-8 h-8" />
+                                <div className={`p-3 sm:p-4 rounded-xl ${c.bg} ${c.color} transition-transform group-hover:scale-110`} aria-hidden="true">
+                                    <c.icon className="w-6 h-6 sm:w-8 sm:h-8" />
                                 </div>
 
-                                <div className="flex-1">
-                                    <div className="font-bold text-lg mb-1">{c.label}</div>
-                                    <div className="text-sm text-muted-foreground">{c.description}</div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-base sm:text-lg mb-0.5 sm:mb-1">{c.label}</div>
+                                    <div className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{c.description}</div>
                                 </div>
 
                                 <div className={`w-4 h-4 rounded-full border-2 transition-colors

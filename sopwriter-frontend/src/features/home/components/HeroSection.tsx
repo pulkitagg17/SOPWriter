@@ -12,7 +12,7 @@ interface HeroSectionProps {
 
 export default function HeroSection({ fadeUp, staggerContainer, slideInRight }: HeroSectionProps) {
   return (
-    <section className="relative py-24 lg:py-40">
+    <section className="relative py-8 sm:py-16 lg:py-40">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16">
           {/* Left Column - Main Content */}

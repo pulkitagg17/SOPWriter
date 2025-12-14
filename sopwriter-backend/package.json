@@ -27,7 +27,7 @@
     "mongodb",
     "esm"
   ],
-  "author": "Yash Garg",
+  "author": "Yash Garg, Pulkit Aggarwal",
   "license": "MIT",
   "engines": {
     "node": ">=20.19.0"

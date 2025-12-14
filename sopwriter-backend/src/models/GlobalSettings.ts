@@ -1,9 +1,10 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
+import { SettingType, SettingTypeType } from '../constants/index.js';
 
 export interface IGlobalSettings extends Document {
-  key: string; // e.g., 'contact_email', 'upi_id'
+  key: string;
   value: string;
-  type: 'string' | 'number' | 'boolean' | 'json';
+  type: SettingTypeType;
   description?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -13,7 +14,7 @@ const GlobalSettingsSchema = new Schema<IGlobalSettings>(
   {
     key: { type: String, required: true, unique: true, index: true, trim: true },
     value: { type: String, required: true },
-    type: { type: String, default: 'string' },
+    type: { type: String, default: SettingType.STRING, enum: Object.values(SettingType) },
     description: { type: String },
   },
   { timestamps: true }

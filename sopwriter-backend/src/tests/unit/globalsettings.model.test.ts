@@ -1,6 +1,7 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import GlobalSettings from '../../models/GlobalSettings.js';
+import { SettingType } from '../../constants/index.js';
 
 describe('GlobalSettings Model', () => {
   let mongoServer: MongoMemoryServer;
@@ -25,7 +26,7 @@ describe('GlobalSettings Model', () => {
       const settingData = {
         key: 'contact_phone',
         value: '+91 98765 43210',
-        type: 'contact',
+        type: SettingType.STRING,
         description: 'Primary contact phone number',
       };
 
@@ -33,7 +34,7 @@ describe('GlobalSettings Model', () => {
 
       expect(setting.key).toBe('contact_phone');
       expect(setting.value).toBe('+91 98765 43210');
-      expect(setting.type).toBe('contact');
+      expect(setting.type).toBe(SettingType.STRING);
       expect(setting.description).toBe('Primary contact phone number');
       expect(setting.createdAt).toBeDefined();
       expect(setting.updatedAt).toBeDefined();
@@ -42,7 +43,7 @@ describe('GlobalSettings Model', () => {
     it('should require key field', async () => {
       const settingData = {
         value: 'test value',
-        type: 'test',
+        type: SettingType.STRING,
       };
 
       await expect(GlobalSettings.create(settingData)).rejects.toThrow();
@@ -51,7 +52,7 @@ describe('GlobalSettings Model', () => {
     it('should require value field', async () => {
       const settingData = {
         key: 'test_key',
-        type: 'test',
+        type: SettingType.STRING,
       };
 
       await expect(GlobalSettings.create(settingData)).rejects.toThrow();
@@ -61,14 +62,14 @@ describe('GlobalSettings Model', () => {
       await GlobalSettings.create({
         key: 'unique_key',
         value: 'value 1',
-        type: 'test',
+        type: SettingType.STRING,
       });
 
       await expect(
         GlobalSettings.create({
           key: 'unique_key',
           value: 'value 2',
-          type: 'test',
+          type: SettingType.STRING,
         })
       ).rejects.toThrow();
     });
@@ -86,7 +87,7 @@ describe('GlobalSettings Model', () => {
       const setting = await GlobalSettings.create({
         key: 'no_description',
         value: 'test',
-        type: 'test',
+        type: SettingType.STRING,
       });
 
       expect(setting.description).toBeUndefined();
@@ -96,7 +97,7 @@ describe('GlobalSettings Model', () => {
       const setting = await GlobalSettings.create({
         key: '  trimmed_key  ',
         value: 'value',
-        type: 'test',
+        type: SettingType.STRING,
       });
 
       expect(setting.key).toBe('trimmed_key');
@@ -106,22 +107,22 @@ describe('GlobalSettings Model', () => {
   describe('CRUD Operations', () => {
     it('should create contact settings', async () => {
       await GlobalSettings.create([
-        { key: 'contact_phone', value: '+91 98765 43210', type: 'contact' },
-        { key: 'contact_email', value: 'info@example.com', type: 'contact' },
-        { key: 'contact_whatsapp', value: '919871160227', type: 'contact' },
+        { key: 'contact_phone', value: '+91 98765 43210', type: SettingType.STRING },
+        { key: 'contact_email', value: 'info@example.com', type: SettingType.STRING },
+        { key: 'contact_whatsapp', value: '919871160227', type: SettingType.STRING },
       ]);
 
-      const contactSettings = await GlobalSettings.find({ type: 'contact' });
+      const contactSettings = await GlobalSettings.find({ key: /^contact_/ });
       expect(contactSettings).toHaveLength(3);
     });
 
     it('should create payment settings', async () => {
       await GlobalSettings.create([
-        { key: 'payment_upi_id', value: '919871160227@upi', type: 'payment' },
-        { key: 'payment_qr_image', value: '/uploads/qr.jpg', type: 'payment' },
+        { key: 'payment_upi_id', value: '919871160227@upi', type: SettingType.STRING },
+        { key: 'payment_qr_image', value: '/uploads/qr.jpg', type: SettingType.STRING },
       ]);
 
-      const paymentSettings = await GlobalSettings.find({ type: 'payment' });
+      const paymentSettings = await GlobalSettings.find({ key: /^payment_/ });
       expect(paymentSettings).toHaveLength(2);
     });
 
@@ -129,7 +130,7 @@ describe('GlobalSettings Model', () => {
       const setting = await GlobalSettings.create({
         key: 'contact_phone',
         value: '+91 11111 11111',
-        type: 'contact',
+        type: SettingType.STRING,
       });
 
       setting.value = '+91 98765 43210';
@@ -145,7 +146,7 @@ describe('GlobalSettings Model', () => {
       const setting = await GlobalSettings.create({
         key: 'delete_me',
         value: 'to be deleted',
-        type: 'test',
+        type: SettingType.STRING,
       });
 
       await GlobalSettings.deleteOne({ _id: setting._id });
@@ -158,7 +159,7 @@ describe('GlobalSettings Model', () => {
       // First upsert - should insert
       await GlobalSettings.findOneAndUpdate(
         { key: 'upsert_key' },
-        { value: 'first value', type: 'test' },
+        { value: 'first value', type: SettingType.STRING },
         { upsert: true, new: true }
       );
 
@@ -181,19 +182,19 @@ describe('GlobalSettings Model', () => {
   describe('Querying Settings', () => {
     beforeEach(async () => {
       await GlobalSettings.create([
-        { key: 'contact_phone', value: '+91 98765 43210', type: 'contact' },
-        { key: 'contact_email', value: 'info@example.com', type: 'contact' },
-        { key: 'support_email', value: 'support@example.com', type: 'contact' },
-        { key: 'payment_upi_id', value: '919871160227@upi', type: 'payment' },
-        { key: 'payment_qr_image', value: '/uploads/qr.jpg', type: 'payment' },
+        { key: 'contact_phone', value: '+91 98765 43210', type: SettingType.STRING },
+        { key: 'contact_email', value: 'info@example.com', type: SettingType.STRING },
+        { key: 'support_email', value: 'support@example.com', type: SettingType.STRING },
+        { key: 'payment_upi_id', value: '919871160227@upi', type: SettingType.STRING },
+        { key: 'payment_qr_image', value: '/uploads/qr.jpg', type: SettingType.STRING },
       ]);
     });
 
-    it('should find settings by type', async () => {
-      const contactSettings = await GlobalSettings.find({ type: 'contact' });
-      expect(contactSettings).toHaveLength(3);
+    it('should find settings by key pattern', async () => {
+      const contactSettings = await GlobalSettings.find({ key: /^contact_/ });
+      expect(contactSettings).toHaveLength(2);
 
-      const paymentSettings = await GlobalSettings.find({ type: 'payment' });
+      const paymentSettings = await GlobalSettings.find({ key: /^payment_/ });
       expect(paymentSettings).toHaveLength(2);
     });
 
@@ -219,7 +220,7 @@ describe('GlobalSettings Model', () => {
       const setting = await GlobalSettings.create({
         key: 'test_key',
         value: 'test value',
-        type: 'test',
+        type: SettingType.STRING,
       });
 
       expect(setting.createdAt).toBeInstanceOf(Date);
@@ -230,7 +231,7 @@ describe('GlobalSettings Model', () => {
       const setting = await GlobalSettings.create({
         key: 'test_key',
         value: 'initial value',
-        type: 'test',
+        type: SettingType.STRING,
       });
 
       const initialUpdatedAt = setting.updatedAt;

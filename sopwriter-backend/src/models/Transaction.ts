@@ -1,4 +1,10 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
+import {
+  TransactionStatus,
+  TransactionStatusType,
+  TransactionMethod,
+  TransactionMethodType,
+} from '../constants/index.js';
 
 export interface ITransHistoryEntry {
   action: string;
@@ -11,11 +17,11 @@ export interface ITransaction extends Document {
   leadId: mongoose.Types.ObjectId;
   transactionId?: string;
   amount?: number;
-  method?: 'UPI' | 'BANK' | 'OTHER';
+  method?: TransactionMethodType;
   remark?: string;
   submittedAt: Date;
   submittedByIp?: string;
-  status: 'DECLARED' | 'VERIFIED' | 'REJECTED';
+  status: TransactionStatusType;
   verifiedBy?: string;
   verifiedAt?: Date;
   verificationNote?: string;
@@ -38,15 +44,15 @@ const TransactionSchema = new Schema<ITransaction>(
   {
     leadId: { type: Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
     transactionId: { type: String, index: true },
-    amount: { type: Number },
-    method: { type: String, enum: ['UPI', 'BANK', 'OTHER'] },
+    amount: { type: Number, min: [0, 'Amount must be positive'] },
+    method: { type: String, enum: Object.values(TransactionMethod) },
     remark: { type: String },
     submittedAt: { type: Date, default: Date.now },
     submittedByIp: { type: String },
     status: {
       type: String,
-      enum: ['DECLARED', 'VERIFIED', 'REJECTED'],
-      default: 'DECLARED',
+      enum: Object.values(TransactionStatus),
+      default: TransactionStatus.DECLARED,
       index: true,
     },
     verifiedBy: { type: String },

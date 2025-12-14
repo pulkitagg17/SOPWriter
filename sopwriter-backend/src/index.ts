@@ -1,6 +1,7 @@
 import { createApp } from './app.js';
 import { connectDatabase } from './config/database.js';
 import { config_vars } from './config/env.js';
+import { logger } from './config/logger.js';
 import mongoose from 'mongoose';
 import type { Server } from 'http';
 
@@ -13,31 +14,31 @@ const startServer = async (): Promise<void> => {
     const app = createApp();
 
     server = app.listen(config_vars.port, () => {
-      console.log(`Server running on port ${config_vars.port}`);
-      console.log(`Environment: ${config_vars.nodeEnv}`);
+      logger.info(
+        { port: config_vars.port, env: config_vars.nodeEnv },
+        'Server started successfully'
+      );
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    logger.error({ err: error }, 'Failed to start server');
     process.exit(1);
   }
 };
 
 // Graceful shutdown
 const gracefulShutdown = async (signal: string) => {
-  console.log(`\n${signal} received. Starting graceful shutdown...`);
+  logger.info({ signal }, 'Graceful shutdown initiated');
 
   if (server) {
-    server.close(() => {
-      console.log('HTTP server closed');
-    });
+    server.close();
   }
 
   try {
     await mongoose.connection.close();
-    console.log('MongoDB connection closed');
+    logger.info('MongoDB connection closed');
     process.exit(0);
   } catch (error) {
-    console.error('Error during shutdown:', error);
+    logger.error({ err: error }, 'Error during shutdown');
     process.exit(1);
   }
 };

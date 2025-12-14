@@ -5,21 +5,24 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+} from "@/shared/components/ui/table";
+import { Button } from "@/shared/components/ui/button";
 import { Check, X } from "lucide-react";
-import TransactionStatusBadge from "./TransactionStatusBadge";
-import type { Transaction } from "@/hooks/useAdminTransactions";
-import { PRICING_MAP } from "@/lib/constants";
+import TransactionStatusBadge from "@/features/admin/components/TransactionStatusBadge";
+import type { Transaction } from "@/features/admin/hooks/useAdminTransactions";
+import { PRICING_MAP } from "@/core/config/constants";
+import { memo } from "react";
+import { formatTableDateTime } from "@/shared/utils/dateUtils";
+import { EmptyState } from "@/shared/components/EmptyState";
 
 interface TransactionTableProps {
     transactions: Transaction[];
     onAction: (txId: string, action: 'VERIFY' | 'REJECT') => void;
 }
 
-export default function TransactionTable({ transactions, onAction }: TransactionTableProps) {
+function TransactionTableComponent({ transactions, onAction }: TransactionTableProps) {
     if (transactions.length === 0) {
-        return <div className="p-8 text-center text-muted-foreground border rounded-lg bg-muted/20">No transactions found.</div>;
+        return <EmptyState message="No transactions found." />;
     }
 
     return (
@@ -38,17 +41,17 @@ export default function TransactionTable({ transactions, onAction }: Transaction
                 </TableHeader>
                 <TableBody>
                     {transactions.map((tx) => {
-                        const serviceName = tx.lead?.service || "";
+                        const lead = typeof tx.leadId === 'object' ? tx.leadId : null;
+                        const serviceName = lead?.service || "";
                         const amount = PRICING_MAP[serviceName];
                         return (
                             <TableRow key={tx._id}>
                                 <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                                    {new Date(tx.submittedAt).toLocaleDateString()} <br />
-                                    <span className="text-xs">{new Date(tx.submittedAt).toLocaleTimeString()}</span>
+                                    {formatTableDateTime(tx.submittedAt)}
                                 </TableCell>
                                 <TableCell>
-                                    <div className="font-medium">{tx.lead?.name || "Unknown"}</div>
-                                    <div className="text-xs text-muted-foreground">{tx.lead?.email}</div>
+                                    <div className="font-medium">{lead?.name || "Unknown"}</div>
+                                    <div className="text-xs text-muted-foreground">{lead?.email}</div>
                                 </TableCell>
                                 <TableCell className="max-w-[150px] truncate" title={serviceName}>
                                     {serviceName || "-"}
@@ -97,3 +100,7 @@ export default function TransactionTable({ transactions, onAction }: Transaction
         </div>
     );
 }
+
+const TransactionTable = memo(TransactionTableComponent);
+
+export default TransactionTable;

@@ -5,6 +5,9 @@ import request from 'supertest';
 import { createApp } from '../../app.js';
 import * as mailModule from '../../services/mail.service.js';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import { config_vars } from '../../config/env.js';
+import Admin from '../../models/Admin.js';
 
 let mongod: MongoMemoryServer;
 let app: any;
@@ -27,13 +30,7 @@ afterEach(async () => {
 
 describe('full integration flow', () => {
   it('lead -> declare -> admin verify', async () => {
-    // We must spy on the prototype since the app uses new MailService()
-    // And we need to ensure we are mocking the methods effectively.
-    // However, in ESM, mocking with jest.spyOn works if the module exports class.
-    // But internal calls within class might not be intercepted if not careful?
-    // No, prototype spy is standard.
-    // NOTE: MailService is exported as a class.
-
+    // Spying
     const leadSpy = jest
       .spyOn(mailModule.MailService.prototype, 'sendLeadConfirmation')
       .mockResolvedValue({ ok: true } as any);
@@ -45,23 +42,35 @@ describe('full integration flow', () => {
       .mockResolvedValue({ ok: true } as any);
 
     const leadRes = await request(app)
-      .post('/api/leads')
+      .post('/api/v1/leads')
       .send({ name: 'Full', email: 'full@example.com', service: 'VISA_TOURIST' })
       .expect(201);
     const leadId = leadRes.body.data.leadId;
     expect(leadSpy).toHaveBeenCalled();
 
     const txRes = await request(app)
-      .post(`/api/leads/${leadId}/transactions`)
+      .post(`/api/v1/leads/${leadId}/transactions`)
       .send({ transactionId: 'TX-F1' })
       .expect(200);
     expect(adminSpy).toHaveBeenCalled();
     const txId = txRes.body.data.transactionId;
 
-    process.env.JWT_SECRET = 'test-secret';
-    const token = jwt.sign({ sub: 'admin', role: 'admin', email: 'a@test' }, 'test-secret', {
-      expiresIn: '1h',
+    // Create Admin
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash('password123', salt);
+    const admin = await Admin.create({
+      email: 'admin@flow.com',
+      passwordHash: hash,
+      tokenVersion: 0,
     });
+
+    const token = jwt.sign(
+      { adminId: admin._id, scope: 'admin', version: 0 },
+      config_vars.jwt.secret,
+      {
+        expiresIn: '1h',
+      }
+    );
 
     const verifyRes = await request(app)
       .post(`/api/admin/transactions/${txId}/verify`)

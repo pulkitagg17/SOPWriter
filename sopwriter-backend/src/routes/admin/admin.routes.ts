@@ -3,11 +3,21 @@ import { requireAdmin } from '../../middlewares/auth.js';
 import { validateRequest } from '../../middlewares/validateRequest.js';
 import { verifyTransactionSchema } from '../../utils/zodSchemas.js';
 import {
+  loginRateLimiter,
+  otpRateLimiter,
+  forgotPasswordRateLimiter,
+} from '../../middlewares/rateLimiter.js';
+import {
   listTransactions,
   listLeads,
   getTransactionDetail,
   verifyTransactionHandler,
   loginHandler,
+  logoutHandler,
+  meHandler,
+  forgotPasswordHandler,
+  verifyOtpHandler,
+  resetPasswordHandler,
 } from '../../controllers/admin.controller.js';
 import {
   getAllServices,
@@ -21,9 +31,15 @@ import {
 
 const router = express.Router();
 
-router.post('/login', loginHandler);
+// Auth Routes
+router.post('/login', loginRateLimiter, loginHandler);
+router.post('/logout', logoutHandler);
+router.get('/me', requireAdmin, meHandler);
+router.post('/forgot-password', forgotPasswordRateLimiter, forgotPasswordHandler);
+router.post('/verify-otp', otpRateLimiter, verifyOtpHandler);
+router.post('/reset-password', resetPasswordHandler); // Rate limit? Maybe generic limiter.
 
-// apply auth to all admin routes
+// apply auth to all admin routes below
 router.use(requireAdmin);
 
 router.get('/leads', listLeads);

@@ -1,5 +1,7 @@
 import sgMail from '@sendgrid/mail';
 import nodemailer from 'nodemailer';
+import { config_vars } from '../config/env.js';
+import { RETRY } from '../constants/index.js';
 
 type Provider = 'sendgrid' | 'smtp' | 'memory';
 
@@ -17,6 +19,7 @@ function wait(ms: number) {
 }
 
 export class MailService {
+  private static instance: MailService | null = null;
   private from: string;
   public adminEmail: string;
   private provider: Provider;
@@ -29,19 +32,19 @@ export class MailService {
     this.from = opts.from;
     this.adminEmail = opts.adminEmail;
     // Default to 'memory' in test environment if not explicitly set
-    if (!opts.provider && process.env.NODE_ENV === 'test') {
+    if (!opts.provider && config_vars.nodeEnv === 'test') {
       this.provider = 'memory';
     } else {
       this.provider =
-        opts.provider || (process.env.MAIL_PROVIDER === 'sendgrid' ? 'sendgrid' : 'smtp');
+        opts.provider || (config_vars.mail.provider === 'sendgrid' ? 'sendgrid' : 'smtp');
     }
 
-    this.sgKey = opts.sendgridApiKey || process.env.SENDGRID_API_KEY;
-    this.retryAttempts = opts.retryAttempts ?? 3;
+    this.sgKey = opts.sendgridApiKey || config_vars.mail.sendgridApiKey;
+    this.retryAttempts = opts.retryAttempts ?? RETRY.MAX_ATTEMPTS;
 
     if (this.provider === 'sendgrid') {
       if (!this.sgKey) {
-        console.warn('MailService: sendgrid selected but API key missing — falling back to smtp');
+        // Fallback to smtp if API key is missing
         this.provider = 'smtp';
       } else {
         sgMail.setApiKey(this.sgKey);
@@ -52,15 +55,38 @@ export class MailService {
       const smtpConfig =
         opts.smtpConfig ||
         ({
-          host: process.env.SMTP_HOST,
-          port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : undefined,
-          secure: process.env.SMTP_SECURE === 'true',
-          auth: process.env.SMTP_USER
-            ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-            : undefined,
+          host: config_vars.email.smtp.host,
+          port: config_vars.email.smtp.port,
+          secure: config_vars.email.smtp.secure,
+          auth: {
+            user: config_vars.email.smtp.user,
+            pass: config_vars.email.smtp.pass,
+          },
         } as nodemailer.TransportOptions);
       this.transporter = nodemailer.createTransport(smtpConfig);
     }
+  }
+
+  /**
+   * Get singleton instance of MailService
+   */
+  static getInstance(opts?: MailServiceOptions): MailService {
+    if (!MailService.instance) {
+      MailService.instance = new MailService(
+        opts || {
+          from: config_vars.email.from,
+          adminEmail: config_vars.email.adminNotify,
+        }
+      );
+    }
+    return MailService.instance;
+  }
+
+  /**
+   * Reset singleton instance (for testing)
+   */
+  static resetInstance(): void {
+    MailService.instance = null;
   }
 
   // low-level send with provider-specific behaviour and retry
@@ -96,7 +122,7 @@ export class MailService {
 
         if (attempt >= this.retryAttempts || !isTransient) break;
 
-        const delay = 2 ** attempt * 100; // exponential backoff: 200ms, 400ms, 800ms
+        const delay = RETRY.EXPONENTIAL_BASE ** attempt * RETRY.BASE_DELAY_MS;
         await wait(delay);
       }
     }
@@ -119,7 +145,15 @@ export class MailService {
     vars: { name: string; leadId: string; service: string; adminEmail: string; appUrl: string }
   ) {
     const subject = `Request Received — ${vars.service}`;
-    const text = `Hi ${vars.name},\n\nWe received your request. Your Reference ID is: ${vars.leadId}\n\nPlease proceed to payment (or continue later) at: ${vars.appUrl}/payment?leadId=${vars.leadId}\n\nIf you have any questions, reply to this email.\n\nThanks.`;
+    const text = `Hi ${vars.name},
+
+We received your request. Your Reference ID is: ${vars.leadId}
+
+Please proceed to payment (or continue later) at: ${vars.appUrl}/payment?leadId=${vars.leadId}
+
+If you have any questions, reply to this email.
+
+Thanks.`;
     const html = `<p>Hi ${vars.name},</p><p>We received your request.</p><p>Your Reference ID is: <strong>${vars.leadId}</strong></p><p>Please <a href="${vars.appUrl}/payment?leadId=${vars.leadId}">click here to complete your payment</a>.</p><p>You can also use this Reference ID to track your application on our website later.</p><p>Thanks.</p>`;
     return this.send(to, subject, text, { html });
   }
@@ -147,7 +181,18 @@ export class MailService {
     }
   ) {
     const subject = `Payment ${vars.status} for Lead ${vars.leadId}`;
-    const text = `Hi ${vars.name},\n\nYour payment for lead ${vars.leadId} has been ${vars.status}.\n${vars.note ? 'Note from admin: ' + vars.note + '\n' : ''}\nYou can view details at ${vars.appUrl}/leads/${vars.leadId}\n\nThanks.`;
+    const noteText = vars.note ? `Note from admin: ${vars.note}\n` : '';
+    const text = `Hi ${vars.name},
+
+Your payment for lead ${vars.leadId} has been ${vars.status}.
+${noteText}You can view details at ${vars.appUrl}/leads/${vars.leadId}
+
+Thanks.`;
+    return this.send(to, subject, text);
+  }
+  async sendOtp(to: string, otp: string) {
+    const subject = 'Password Reset OTP';
+    const text = `Your OTP for password reset is: ${otp}\n\nThis OTP is valid for 5 minutes.\nIf you did not request this, please ignore this email.`;
     return this.send(to, subject, text);
   }
 }

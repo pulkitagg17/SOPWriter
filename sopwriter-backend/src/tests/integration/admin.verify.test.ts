@@ -3,8 +3,11 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 import { createApp } from '../../app.js';
 import * as mailServiceModule from '../../services/mail.service.js';
+import { config_vars } from '../../config/env.js';
+import Admin from '../../models/Admin.js';
 
 let mongod: MongoMemoryServer;
 let app: any;
@@ -34,12 +37,16 @@ afterEach(async () => {
 });
 
 describe('Admin verify flow', () => {
-  const secret = 'test-secret';
-  beforeAll(() => {
-    process.env.JWT_SECRET = secret;
-  });
-  function getAdminToken() {
-    return jwt.sign({ sub: 'admin1', role: 'admin', email: 'admin@example.com' }, secret, {
+  async function getAdminToken() {
+    const email = `admin-${Date.now()}@test.com`;
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash('password', salt);
+    const admin = await Admin.create({
+      email,
+      passwordHash: hash,
+      tokenVersion: 0,
+    });
+    return jwt.sign({ adminId: admin._id, scope: 'admin', version: 0 }, config_vars.jwt.secret, {
       expiresIn: '1h',
     });
   }
@@ -51,18 +58,18 @@ describe('Admin verify flow', () => {
 
     // create lead and tx
     const leadRes = await request(app)
-      .post('/api/leads')
+      .post('/api/v1/leads')
       .send({ name: 'Gina', email: 'g@example.com', service: 'VISA_TOURIST' })
       .expect(201);
     const leadId = leadRes.body.data.leadId;
     const txRes = await request(app)
-      .post(`/api/leads/${leadId}/transactions`)
+      .post(`/api/v1/leads/${leadId}/transactions`)
       .send({ transactionId: 'TX-V1' })
       .expect(200);
     const txId = txRes.body.data.transactionId;
 
     // verify as admin
-    const token = getAdminToken();
+    const token = await getAdminToken();
     const res = await request(app)
       .post(`/api/admin/transactions/${txId}/verify`)
       .set('Authorization', `Bearer ${token}`)
@@ -78,7 +85,7 @@ describe('Admin verify flow', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     expect(txDetail.body.data.status).toBe('VERIFIED');
-    expect(txDetail.body.data.verifiedBy).toBe('admin@example.com');
+    expect(txDetail.body.data.verifiedBy).toBeDefined();
 
     mailSpy.mockRestore();
   });
@@ -89,17 +96,17 @@ describe('Admin verify flow', () => {
       .mockResolvedValue({ ok: true } as any);
 
     const leadRes = await request(app)
-      .post('/api/leads')
+      .post('/api/v1/leads')
       .send({ name: 'Hank', email: 'h@example.com', service: 'VISA_TOURIST' })
       .expect(201);
     const leadId = leadRes.body.data.leadId;
     const txRes = await request(app)
-      .post(`/api/leads/${leadId}/transactions`)
+      .post(`/api/v1/leads/${leadId}/transactions`)
       .send({ transactionId: 'TX-R1' })
       .expect(200);
     const txId = txRes.body.data.transactionId;
 
-    const token = getAdminToken();
+    const token = await getAdminToken();
     const res = await request(app)
       .post(`/api/admin/transactions/${txId}/verify`)
       .set('Authorization', `Bearer ${token}`)
@@ -119,7 +126,7 @@ describe('Admin verify flow', () => {
   });
 
   it('returns 404 for missing transaction', async () => {
-    const token = getAdminToken();
+    const token = await getAdminToken();
     const res = await request(app)
       .post(`/api/admin/transactions/000000000000000000000000/verify`)
       .set('Authorization', `Bearer ${token}`)

@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
+import { api } from "@/core/api/client";
 import type { AppConfig } from "@/types/config";
-import { api } from "@/lib/api";
-import { SERVICE_MAP, PRICING_MAP, SERVICE_DESCRIPTIONS } from "@/lib/constants";
+import { ENDPOINTS } from "@/core/config/endpoints";
+import { SERVICE_MAP, PRICING_MAP, SERVICE_DESCRIPTIONS } from "@/core/config/constants";
 
 // Default Fallback Config (derived from current constants)
 const defaultConfig: AppConfig = {
@@ -18,8 +19,8 @@ const defaultConfig: AppConfig = {
         {
             key: "documents",
             label: "Application Documents",
-            description: "SOP, LOR, Essays, Research",
-            services: SERVICE_MAP["documents"].map(s => ({
+            description: "SOP, LOR, Essays, Article",
+            services: SERVICE_MAP["documents"].map((s: string) => ({
                 name: s,
                 price: PRICING_MAP[s] || 0,
                 description: SERVICE_DESCRIPTIONS[s] || ""
@@ -29,7 +30,7 @@ const defaultConfig: AppConfig = {
             key: "profile",
             label: "Profile Building",
             description: "Resume, Interview Prep",
-            services: SERVICE_MAP["profile"].map(s => ({
+            services: SERVICE_MAP["profile"].map((s: string) => ({
                 name: s,
                 price: PRICING_MAP[s] || 0,
                 description: SERVICE_DESCRIPTIONS[s] || ""
@@ -39,7 +40,7 @@ const defaultConfig: AppConfig = {
             key: "visa",
             label: "Visa Preparation",
             description: "USA Visa, Australia GTE",
-            services: SERVICE_MAP["visa"].map(s => ({
+            services: SERVICE_MAP["visa"].map((s: string) => ({
                 name: s,
                 price: PRICING_MAP[s] || 0,
                 description: SERVICE_DESCRIPTIONS[s] || ""
@@ -60,6 +61,7 @@ const ConfigContext = createContext<ConfigContextType>({
     refreshConfig: async () => { },
 });
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useConfig = () => useContext(ConfigContext);
 
 export function ConfigProvider({ children }: { children: React.ReactNode }) {
@@ -69,7 +71,7 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
     const fetchConfig = async () => {
         try {
             // Attempt to fetch from backend
-            const { data } = await api.get("/config");
+            const { data } = await api.get(ENDPOINTS.CONFIG);
             if (data.success && data.data) {
                 setConfig(data.data);
             } else {

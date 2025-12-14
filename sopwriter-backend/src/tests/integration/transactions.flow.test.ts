@@ -43,7 +43,7 @@ describe('POST /api/leads/:leadId/transactions', () => {
       .mockResolvedValue({ ok: true } as any);
     // create a lead first
     const leadRes = await request(app)
-      .post('/api/leads')
+      .post('/api/v1/leads')
       .send({ name: 'Charlie', email: 'c@example.com', service: 'VISA_TOURIST' })
       .expect(201);
     const leadId = leadRes.body.data.leadId;
@@ -55,7 +55,7 @@ describe('POST /api/leads/:leadId/transactions', () => {
       remark: 'paid via upi',
     };
     const res = await request(app)
-      .post(`/api/leads/${leadId}/transactions`)
+      .post(`/api/v1/leads/${leadId}/transactions`)
       .send(payload)
       .expect(200);
     expect(res.body.success).toBe(true);
@@ -67,7 +67,7 @@ describe('POST /api/leads/:leadId/transactions', () => {
 
   it('returns 404 if lead not found', async () => {
     const res = await request(app)
-      .post(`/api/leads/000000000000000000000000/transactions`)
+      .post(`/api/v1/leads/000000000000000000000000/transactions`)
       .send({ transactionId: 'X' })
       .expect(404);
     expect(res.body.code).toBe('LEAD_NOT_FOUND');
@@ -76,12 +76,12 @@ describe('POST /api/leads/:leadId/transactions', () => {
   it('rejects invalid payload', async () => {
     // invalid: missing transactionId
     const leadRes = await request(app)
-      .post('/api/leads')
+      .post('/api/v1/leads')
       .send({ name: 'Dana', email: 'd@example.com', service: 'VISA_TOURIST' })
       .expect(201);
     const leadId = leadRes.body.data.leadId;
     const res = await request(app)
-      .post(`/api/leads/${leadId}/transactions`)
+      .post(`/api/v1/leads/${leadId}/transactions`)
       .send({ amount: -5 })
       .expect(400);
     expect(res.body.code).toBe('VALIDATION_ERROR');

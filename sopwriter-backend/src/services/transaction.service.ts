@@ -1,6 +1,9 @@
 import Transaction, { ITransaction } from '../models/Transaction.js';
 import Lead from '../models/Lead.js';
 import { CreateTransactionDTO } from '../utils/zodSchemas.js';
+import { NotFoundError } from '../utils/errors.js';
+import mongoose from 'mongoose';
+import { HistoryAction, LeadStatus, TransactionStatus } from '../constants/index.js';
 
 export async function declareTransaction(
   leadId: string,
@@ -9,7 +12,7 @@ export async function declareTransaction(
 ): Promise<ITransaction> {
   // ensure lead exists
   const lead = await Lead.findById(leadId).exec();
-  if (!lead) throw new Error('LEAD_NOT_FOUND');
+  if (!lead) throw new NotFoundError('Lead', leadId);
 
   // Check for existing transaction (Idempotency)
   const existingTx = await Transaction.findOne({
@@ -30,17 +33,17 @@ export async function declareTransaction(
     submittedByIp,
   });
 
-  tx.history.push({ action: 'DECLARED', by: 'public', note: payload.remark });
+  tx.history.push({ action: HistoryAction.DECLARED, by: 'public', note: payload.remark });
   await tx.save();
 
   // append to lead history
   lead.history.push({
-    action: 'PAYMENT_DECLARED',
+    action: HistoryAction.PAYMENT_DECLARED,
     note: `Transaction ${tx._id} declared`,
     by: 'public',
   });
   // Optionally update lead.status
-  lead.status = 'PAYMENT_DECLARED';
+  lead.status = LeadStatus.PAYMENT_DECLARED;
   await lead.save();
 
   return tx;
@@ -50,63 +53,137 @@ export async function getTransactionById(id: string) {
   return Transaction.findById(id).populate('leadId').exec();
 }
 
+/**
+ * Helper to get verification update data based on action
+ */
+function getVerificationUpdate(action: 'VERIFY' | 'REJECT') {
+  return action === 'VERIFY'
+    ? {
+        txStatus: TransactionStatus.VERIFIED,
+        txAction: HistoryAction.VERIFIED,
+        leadStatus: LeadStatus.VERIFIED,
+        leadAction: HistoryAction.PAYMENT_VERIFIED,
+      }
+    : {
+        txStatus: TransactionStatus.REJECTED,
+        txAction: HistoryAction.REJECTED,
+        leadStatus: LeadStatus.REJECTED,
+        leadAction: HistoryAction.PAYMENT_REJECTED,
+      };
+}
+
+/**
+ * Check if MongoDB transactions are supported (requires replica set)
+ */
+async function isTransactionSupported(): Promise<boolean> {
+  try {
+    const session = await mongoose.startSession();
+    session.endSession();
+    // Check if we're connected to a replica set
+    const adminDb = mongoose.connection.db?.admin();
+    if (!adminDb) return false;
+    const serverStatus = await adminDb.serverStatus();
+    return serverStatus.repl !== undefined;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Verify or reject a transaction with database transaction support (when available)
+ */
 export async function verifyTransaction(
   id: string,
   admin: { id: string; email?: string },
   action: 'VERIFY' | 'REJECT',
   note?: string
 ) {
-  const tx = await Transaction.findById(id).exec();
-  if (!tx) throw new Error('TRANSACTION_NOT_FOUND');
+  const supportsTransactions = await isTransactionSupported();
 
-  if (action === 'VERIFY') {
-    tx.status = 'VERIFIED';
-    tx.verifiedBy = admin.email || admin.id;
-    tx.verifiedAt = new Date();
-    tx.verificationNote = note;
-    tx.history.push({
-      action: 'VERIFIED',
-      by: admin.email || admin.id,
-      note,
-      at: new Date(),
-    });
-  } else {
-    tx.status = 'REJECTED';
-    tx.verifiedBy = admin.email || admin.id;
-    tx.verifiedAt = new Date();
-    tx.verificationNote = note;
-    tx.history.push({
-      action: 'REJECTED',
-      by: admin.email || admin.id,
-      note,
-      at: new Date(),
-    });
-  }
+  if (supportsTransactions) {
+    // Use MongoDB transactions for atomicity
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-  await tx.save();
+    try {
+      const tx = await Transaction.findById(id).session(session).exec();
+      if (!tx) throw new NotFoundError('Transaction', id);
 
-  // update lead accordingly
-  const lead = await Lead.findById(tx.leadId).exec();
-  if (lead) {
-    if (action === 'VERIFY') {
-      lead.status = 'VERIFIED';
-      lead.history.push({
-        action: 'PAYMENT_VERIFIED',
-        by: admin.email || admin.id,
+      const update = getVerificationUpdate(action);
+      const adminIdentifier = admin.email || admin.id;
+      const timestamp = new Date();
+
+      // Update transaction
+      tx.status = update.txStatus;
+      tx.verifiedBy = adminIdentifier;
+      tx.verifiedAt = timestamp;
+      tx.verificationNote = note;
+      tx.history.push({
+        action: update.txAction,
+        by: adminIdentifier,
         note,
-        at: new Date(),
+        at: timestamp,
       });
-    } else {
-      lead.status = 'REJECTED';
-      lead.history.push({
-        action: 'PAYMENT_REJECTED',
-        by: admin.email || admin.id,
-        note,
-        at: new Date(),
-      });
+
+      await tx.save({ session });
+
+      // Update lead
+      const lead = await Lead.findById(tx.leadId).session(session).exec();
+      if (lead) {
+        lead.status = update.leadStatus;
+        lead.history.push({
+          action: update.leadAction,
+          by: adminIdentifier,
+          note,
+          at: timestamp,
+        });
+        await lead.save({ session });
+      }
+
+      await session.commitTransaction();
+      return { tx, lead };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
     }
-    await lead.save();
-  }
+  } else {
+    // Fallback: No transaction support (e.g., standalone MongoDB in tests)
+    const tx = await Transaction.findById(id).exec();
+    if (!tx) throw new NotFoundError('Transaction', id);
 
-  return { tx, lead };
+    const update = getVerificationUpdate(action);
+    const adminIdentifier = admin.email || admin.id;
+    const timestamp = new Date();
+
+    // Update transaction
+    tx.status = update.txStatus;
+    tx.verifiedBy = adminIdentifier;
+    tx.verifiedAt = timestamp;
+    tx.verificationNote = note;
+    tx.history.push({
+      action: update.txAction,
+      by: adminIdentifier,
+      note,
+      at: timestamp,
+    });
+
+    await tx.save();
+
+    // Update lead
+    const lead = await Lead.findById(tx.leadId).exec();
+    if (lead) {
+      lead.status = update.leadStatus;
+      lead.history.push({
+        action: update.leadAction,
+        by: adminIdentifier,
+        note,
+        at: timestamp,
+      });
+      await lead.save();
+    }
+
+    return { tx, lead };
+  }
 }

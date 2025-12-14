@@ -1,8 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import pino from 'pino';
-
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+import { logger } from '../config/logger.js';
 
 export function requestLogger(req: Request, res: Response, next: NextFunction) {
   const incoming = req.headers['x-request-id'] as string | undefined;
@@ -34,5 +32,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
   );
   next();
 }
+
+export { logger };
 
 export default logger;

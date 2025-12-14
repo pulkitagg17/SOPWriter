@@ -38,12 +38,12 @@ describe('rate limiting', () => {
       // Need to wait slightly to ensure Express rate limit middleware processes requests separately if needed,
       // but typically it's fast enough.
       await request(app)
-        .post('/api/leads')
+        .post('/api/v1/leads')
         .send({ name: `R${i}`, email: `r${i}@t.com`, service: 'VISA_TOURIST' })
         .expect(201);
     }
     const res = await request(app)
-      .post('/api/leads')
+      .post('/api/v1/leads')
       .send({ name: 'R4', email: 'r4@t.com', service: 'VISA_TOURIST' })
       .expect(429);
     expect(res.body.code).toBe('RATE_LIMIT');

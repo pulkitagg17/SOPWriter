@@ -42,7 +42,7 @@ describe('POST /api/leads flow', () => {
       .spyOn(mailServiceModule.MailService.prototype, 'sendLeadConfirmation')
       .mockResolvedValue({ ok: true } as any);
     const payload = { name: 'Alice', email: 'alice@example.com', service: 'VISA_TOURIST' };
-    const res = await request(app).post('/api/leads').send(payload).expect(201);
+    const res = await request(app).post('/api/v1/leads').send(payload).expect(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.leadId).toBeDefined();
     expect(spy).toHaveBeenCalled();
@@ -54,8 +54,8 @@ describe('POST /api/leads flow', () => {
       .spyOn(mailServiceModule.MailService.prototype, 'sendLeadConfirmation')
       .mockResolvedValue({ ok: true } as any);
     const payload = { name: 'Bob', email: 'bob@example.com', service: 'VISA_TOURIST' };
-    const r1 = await request(app).post('/api/leads').send(payload).expect(201);
-    const r2 = await request(app).post('/api/leads').send(payload).expect(200);
+    const r1 = await request(app).post('/api/v1/leads').send(payload).expect(201);
+    const r2 = await request(app).post('/api/v1/leads').send(payload).expect(200);
     expect(r2.body.data.leadId).toEqual(r1.body.data.leadId);
     expect(spy).toHaveBeenCalledTimes(2);
 
@@ -63,7 +63,7 @@ describe('POST /api/leads flow', () => {
   });
 
   it('rejects invalid payload', async () => {
-    const res = await request(app).post('/api/leads').send({ name: 'A' }).expect(400);
+    const res = await request(app).post('/api/v1/leads').send({ name: 'A' }).expect(400);
     expect(res.body.code).toBe('VALIDATION_ERROR');
   });
 });

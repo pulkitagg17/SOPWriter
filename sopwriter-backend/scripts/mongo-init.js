@@ -1,12 +1,12 @@
-db = db.getSiblingDB('gdocs_dev');
+db = db.getSiblingDB('sopwriter');
 
 db.createUser({
-    user: 'gdocs_user',
-    pwd: 'gdocs_pass',
+    user: 'sopwriter_user',
+    pwd: 'sopwriter_pass',
     roles: [
         {
             role: 'readWrite',
-            db: 'gdocs_dev',
+            db: 'sopwriter',
         },
     ],
 });

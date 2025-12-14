@@ -3,7 +3,10 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 import { createApp } from '../../app.js';
+import { config_vars } from '../../config/env.js';
+import Admin from '../../models/Admin.js';
 
 let mongod: MongoMemoryServer;
 let app: any;
@@ -28,13 +31,18 @@ afterEach(async () => {
 });
 
 describe('Admin transactions endpoints', () => {
-  const secret = 'test-secret';
-  beforeAll(() => {
-    process.env.JWT_SECRET = secret;
-  });
-
-  function getAdminToken() {
-    return jwt.sign({ sub: 'admin1', role: 'admin' }, secret, { expiresIn: '1h' });
+  async function getAdminToken() {
+    const email = `admin-${Date.now()}@test.com`;
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash('password', salt);
+    const admin = await Admin.create({
+      email,
+      passwordHash: hash,
+      tokenVersion: 0,
+    });
+    return jwt.sign({ adminId: admin._id, scope: 'admin', version: 0 }, config_vars.jwt.secret, {
+      expiresIn: '1h',
+    });
   }
 
   it('rejects unauthenticated requests', async () => {
@@ -42,7 +50,7 @@ describe('Admin transactions endpoints', () => {
   });
 
   it('returns empty list initially when authenticated', async () => {
-    const token = getAdminToken();
+    const token = await getAdminToken();
     const res = await request(app)
       .get('/api/admin/transactions')
       .set('Authorization', `Bearer ${token}`)
@@ -53,15 +61,15 @@ describe('Admin transactions endpoints', () => {
   });
 
   it('lists declared transactions', async () => {
-    const token = getAdminToken();
+    const token = await getAdminToken();
     // create lead + transaction
     const leadRes = await request(app)
-      .post('/api/leads')
+      .post('/api/v1/leads')
       .send({ name: 'Eve', email: 'e@example.com', service: 'VISA_TOURIST' })
       .expect(201);
     const leadId = leadRes.body.data.leadId;
     await request(app)
-      .post(`/api/leads/${leadId}/transactions`)
+      .post(`/api/v1/leads/${leadId}/transactions`)
       .send({ transactionId: 'TX-1' })
       .expect(200);
 
@@ -72,19 +80,19 @@ describe('Admin transactions endpoints', () => {
     expect(res.body.data.items.length).toBe(1);
     const item = res.body.data.items[0];
     expect(item.status).toBe('DECLARED');
-    expect(item.lead).toBeDefined();
-    expect(item.lead.name).toBe('Eve');
+    expect(item.leadId).toBeDefined();
+    expect(item.leadId.name).toBe('Eve');
   });
 
   it('can fetch transaction detail', async () => {
-    const token = getAdminToken();
+    const token = await getAdminToken();
     const leadRes = await request(app)
-      .post('/api/leads')
+      .post('/api/v1/leads')
       .send({ name: 'Frank', email: 'f@example.com', service: 'VISA_TOURIST' })
       .expect(201);
     const leadId = leadRes.body.data.leadId;
     const txRes = await request(app)
-      .post(`/api/leads/${leadId}/transactions`)
+      .post(`/api/v1/leads/${leadId}/transactions`)
       .send({ transactionId: 'TX-2' })
       .expect(200);
     const txId = txRes.body.data.transactionId;

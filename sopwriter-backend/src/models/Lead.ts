@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
+import { LeadStatus, LeadStatusType } from '../constants/index.js';
 
 export interface IHistoryEntry {
   action: string;
@@ -13,7 +14,7 @@ export interface ILead extends Document {
   phone?: string;
   service: string;
   notes?: string;
-  status: 'NEW' | 'PAYMENT_DECLARED' | 'VERIFIED' | 'REJECTED';
+  status: LeadStatusType;
   history: IHistoryEntry[];
   createdAt: Date;
   updatedAt: Date;
@@ -31,15 +32,40 @@ const HistorySchema = new Schema<IHistoryEntry>(
 
 const LeadSchema = new Schema<ILead>(
   {
-    name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, trim: true, index: true },
-    phone: { type: String, trim: true },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: [2, 'Name must be at least 2 characters'],
+      maxlength: [100, 'Name cannot exceed 100 characters'],
+    },
+    email: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
+      index: true,
+      validate: {
+        validator: (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+        message: 'Invalid email format',
+      },
+    },
+    phone: {
+      type: String,
+      trim: true,
+      validate: {
+        validator: function (v: string) {
+          return !v || /^\+?[\d\s\-()]+$/.test(v);
+        },
+        message: 'Invalid phone format',
+      },
+    },
     service: { type: String, required: true, trim: true },
     notes: { type: String },
     status: {
       type: String,
-      enum: ['NEW', 'PAYMENT_DECLARED', 'VERIFIED', 'REJECTED'],
-      default: 'NEW',
+      enum: Object.values(LeadStatus),
+      default: LeadStatus.NEW,
     },
     history: { type: [HistorySchema], default: [] },
   },

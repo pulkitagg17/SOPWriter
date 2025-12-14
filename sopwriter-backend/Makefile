@@ -24,8 +24,5 @@ docker-up:
 docker-down:
 	docker-compose -f docker-compose.dev.yml down
 
-seed:
-	npm run seed
-
 clean:
 	rm -rf dist node_modules coverage

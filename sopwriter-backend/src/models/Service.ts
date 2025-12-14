@@ -1,9 +1,10 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
+import { ServiceCategory, ServiceCategoryType } from '../constants/index.js';
 
 export interface IService extends Document {
   code: string;
   name: string;
-  category: 'documents' | 'profile' | 'visa';
+  category: ServiceCategoryType;
   price: number;
   description?: string;
   active: boolean;
@@ -18,7 +19,7 @@ const ServiceSchema = new Schema<IService>(
     category: {
       type: String,
       required: true,
-      enum: ['documents', 'profile', 'visa'],
+      enum: Object.values(ServiceCategory),
       index: true,
     },
     price: { type: Number, required: true, min: 0 },

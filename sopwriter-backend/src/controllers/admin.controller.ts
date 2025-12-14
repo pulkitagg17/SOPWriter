@@ -4,38 +4,90 @@ import Lead from '../models/Lead.js';
 import * as transactionService from '../services/transaction.service.js';
 import { MailService } from '../services/mail.service.js';
 import { config_vars } from '../config/env.js';
-import jwt from 'jsonwebtoken';
+import { NotFoundError } from '../utils/errors.js';
+import { escapeRegex } from '../utils/sanitize.js';
+import { parsePagination, buildPaginationMeta } from '../utils/pagination.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+import { successResponse, errorResponse } from '../utils/responses.js';
+import { ErrorCode, PAGINATION, TIMEOUT } from '../constants/index.js';
+import { AuthService } from '../services/auth.service.js';
+import { logger } from '../config/logger.js';
 
-const mail = new MailService({
-  from: config_vars.email.from,
-  adminEmail: config_vars.email.adminNotify,
+const mail = MailService.getInstance();
+const authService = AuthService.getInstance();
+
+export const loginHandler = asyncHandler(async (req: Request, res: Response) => {
+  const { email, password } = req.body;
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+
+  const result = await authService.login(email, password);
+
+  res.cookie('admin_token', result.token, {
+    httpOnly: true,
+    secure: config_vars.nodeEnv === 'production',
+    sameSite: 'strict',
+    maxAge: 15 * 60 * 1000, // 15 mins
+  });
+
+  logger.info({ event: 'login_success', user: email, ip }, 'Admin logged in');
+
+  res.json(successResponse({ message: 'Logged in successfully' }));
 });
 
-export async function loginHandler(req: Request, res: Response) {
-  const { email, password } = req.body;
+export const meHandler = asyncHandler(async (req: Request, res: Response) => {
+  const admin = (req as any).admin;
+  res.json(successResponse({ admin: { id: admin.sub, email: admin.email, role: admin.scope } }));
+});
 
-  const validEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
-  const validPass = process.env.ADMIN_PASSWORD || 'admin123';
+export const logoutHandler = asyncHandler(async (_req: Request, res: Response) => {
+  res.clearCookie('admin_token');
+  res.json(successResponse({ message: 'Logged out' }));
+});
 
-  if (email === validEmail && password === validPass) {
-    const secret = process.env.JWT_SECRET || 'dev-secret';
-    const token = jwt.sign({ sub: 'admin', role: 'admin', email }, secret, { expiresIn: '7d' });
-    return res.json({ success: true, token });
-  }
+export const forgotPasswordHandler = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.body;
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
 
-  return res
-    .status(401)
-    .json({ success: false, code: 'AUTH_FAILED', message: 'Invalid credentials' });
-}
+  await authService.forgotPassword(email);
 
-export async function listLeads(req: Request, res: Response) {
-  const limit = Math.min(parseInt((req.query.limit as string) || '50', 10), 1000); // Allow retrieving more leads for export
-  const page = Math.max(parseInt((req.query.page as string) || '1', 10), 1);
-  const skip = (page - 1) * limit;
+  logger.info({ event: 'otp_requested', email, ip }, 'OTP requested');
 
-  const filter: any = {};
+  res.json(successResponse({ message: 'If the email exists, an OTP has been sent' }));
+});
+
+export const verifyOtpHandler = asyncHandler(async (req: Request, res: Response) => {
+  const { email, otp } = req.body;
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+
+  const result = await authService.verifyOtp(email, otp);
+
+  logger.info({ event: 'otp_verified', email, ip }, 'OTP verified successfully');
+
+  res.json(successResponse({ resetToken: result.resetToken }));
+});
+
+export const resetPasswordHandler = asyncHandler(async (req: Request, res: Response) => {
+  const { resetToken, newPassword } = req.body;
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+
+  await authService.resetPassword(resetToken, newPassword);
+
+  // Requirement 8: Manual Re-Login. Clear sessions.
+  res.clearCookie('admin_token');
+
+  logger.info({ event: 'password_reset', ip }, 'Password reset successfully');
+
+  res.json(
+    successResponse({ message: 'Password reset successfully. Please login with new password.' })
+  );
+});
+
+export const listLeads = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const { page, limit, skip } = parsePagination(req.query);
+
+  const filter: Record<string, any> = {};
   if (req.query.search) {
-    const search = req.query.search as string;
+    const search = escapeRegex(req.query.search as string);
     filter.$or = [
       { name: { $regex: search, $options: 'i' } },
       { email: { $regex: search, $options: 'i' } },
@@ -43,142 +95,101 @@ export async function listLeads(req: Request, res: Response) {
     ];
   }
 
-  const total = await Lead.countDocuments(filter);
-  const data = await Lead.find(filter)
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean()
-    .exec();
+  if (req.query.status) {
+    filter.status = req.query.status as string;
+  }
 
-  return res.json({
-    success: true,
-    data: {
-      items: data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    },
-  });
-}
+  const [total, data] = await Promise.all([
+    Lead.countDocuments(filter).maxTimeMS(TIMEOUT.DB_QUERY_MS),
+    Lead.find(filter)
+      .select('-history')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .maxTimeMS(TIMEOUT.DB_QUERY_MS)
+      .exec(),
+  ]);
 
-export async function listTransactions(req: Request, res: Response) {
+  const pagination = buildPaginationMeta({ page, limit, skip }, total);
+  res.json(successResponse({ items: data }, pagination));
+});
+
+export const listTransactions = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const status = (req.query.status as string) || undefined;
-  const limit = Math.min(parseInt((req.query.limit as string) || '50', 10), 200);
-  const page = Math.max(parseInt((req.query.page as string) || '1', 10), 1);
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query, {
+    maxLimit: PAGINATION.MAX_TRANSACTIONS_LIMIT,
+  });
 
-  const filter: any = {};
+  const filter: Record<string, any> = {};
   if (status) filter.status = status;
   if (req.query.leadId) filter.leadId = req.query.leadId;
 
-  const docs = await Transaction.find(filter)
-    .sort({ submittedAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean()
-    .exec();
+  const [total, docs] = await Promise.all([
+    Transaction.countDocuments(filter),
+    Transaction.find(filter)
+      .populate('leadId', '_id name email service')
+      .sort({ submittedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec(),
+  ]);
 
-  // Fetch lead basics in batch
-  const leadIds = [...new Set(docs.map((d: any) => d.leadId.toString()))];
-  const leads = await Lead.find({ _id: { $in: leadIds } })
-    .lean()
-    .exec();
-  const leadMap = new Map(leads.map((l: any) => [l._id.toString(), l]));
+  const pagination = buildPaginationMeta({ page, limit, skip }, total);
+  res.json(successResponse({ items: docs }, pagination));
+});
 
-  const items = docs.map((d: any) => {
-    const lead = leadMap.get(d.leadId.toString()) as any;
-    return {
-      ...d,
-      lead: lead
-        ? {
-            _id: lead._id,
-            name: lead.name,
-            email: lead.email,
-            service: lead.service,
-          }
-        : null,
-    };
-  });
+export const getTransactionDetail = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const tx = await Transaction.findById(id)
+      .populate('leadId')
+      .maxTimeMS(TIMEOUT.DB_QUERY_MS)
+      .lean()
+      .exec();
 
-  return res.json({ success: true, data: { items, page, limit } });
-}
+    if (!tx) throw new NotFoundError('Transaction', id);
 
-export async function getTransactionDetail(req: Request, res: Response) {
-  const { id } = req.params;
-  const tx = await Transaction.findById(id).populate('leadId').lean().exec();
-
-  if (!tx) {
-    return res.status(404).json({
-      success: false,
-      code: 'TRANSACTION_NOT_FOUND',
-      message: 'Transaction not found',
-    });
+    res.json(successResponse(tx));
   }
+);
 
-  return res.json({ success: true, data: tx });
-}
-
-export async function verifyTransactionHandler(req: Request, res: Response) {
+export const verifyTransactionHandler = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { action, note } = req.body;
 
   if (!['VERIFY', 'REJECT'].includes(action)) {
-    return res.status(400).json({
-      success: false,
-      code: 'INVALID_ACTION',
-      message: 'Action must be VERIFY or REJECT',
-    });
+    res
+      .status(400)
+      .json(errorResponse(ErrorCode.INVALID_ACTION, 'Action must be VERIFY or REJECT'));
+    return;
   }
 
-  try {
-    const admin = (req as any).admin || { id: 'unknown' };
-    const result = await transactionService.verifyTransaction(
-      id,
-      { id: admin.sub || admin.id, email: admin.email },
-      action as 'VERIFY' | 'REJECT',
-      note
-    );
+  const admin = (req as any).admin || { id: 'unknown' };
+  const result = await transactionService.verifyTransaction(
+    id,
+    { id: admin.sub || admin.id, email: admin.email },
+    action as 'VERIFY' | 'REJECT',
+    note
+  );
 
-    // Notify user (lead)
-    if (result.lead) {
-      // Fire-and-forget email to prevent blocking the response
-      mail
-        .sendUserVerification(result.lead.email, {
-          name: result.lead.name,
-          leadId: result.lead._id.toString(),
-          status: action === 'VERIFY' ? 'VERIFIED' : 'REJECTED',
-          note,
-          appUrl: process.env.APP_BASE_URL || 'http://localhost:4000',
-        })
-        .catch((emailErr) => {
-          console.warn('Background email failed:', emailErr);
-        });
-    }
-
-    return res.json({
-      success: true,
-      data: {
-        transactionId: id,
+  if (result.lead) {
+    mail
+      .sendUserVerification(result.lead.email, {
+        name: result.lead.name,
+        leadId: result.lead._id.toString(),
         status: action === 'VERIFY' ? 'VERIFIED' : 'REJECTED',
-      },
-    });
-  } catch (err: any) {
-    if (err.message === 'TRANSACTION_NOT_FOUND') {
-      return res.status(404).json({
-        success: false,
-        code: 'TRANSACTION_NOT_FOUND',
-        message: 'Transaction not found',
-      });
-    }
-    console.error('verifyTransaction error', err);
-    return res.status(500).json({
-      success: false,
-      code: 'INTERNAL_ERROR',
-      message: 'Could not verify transaction',
-    });
+        note,
+        appUrl: config_vars.app.baseUrl,
+      })
+      .catch(() => {});
   }
-}
+
+  res.json(
+    successResponse({
+      transactionId: id,
+      status: action === 'VERIFY' ? 'VERIFIED' : 'REJECTED',
+    })
+  );
+});

@@ -5,6 +5,10 @@ import { createApp } from '../../app.js';
 import Service from '../../models/Service.js';
 import GlobalSettings from '../../models/GlobalSettings.js';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import { SettingType } from '../../constants/index.js';
+import { config_vars } from '../../config/env.js';
+import Admin from '../../models/Admin.js';
 
 describe('Settings Controller - Admin Settings Management', () => {
   let mongoServer: MongoMemoryServer;
@@ -17,11 +21,23 @@ describe('Settings Controller - Admin Settings Management', () => {
     await mongoose.connect(mongoUri);
     app = createApp();
 
-    // Create admin token
-    const secret = process.env.JWT_SECRET || 'test-secret';
-    adminToken = jwt.sign({ sub: 'admin', role: 'admin', email: 'admin@test.com' }, secret, {
-      expiresIn: '1h',
+    // Create admin in DB
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash('password123', salt);
+    const admin = await Admin.create({
+      email: 'admin@settings.com',
+      passwordHash: hash,
+      tokenVersion: 0,
     });
+
+    // Create admin token
+    adminToken = jwt.sign(
+      { adminId: admin._id, scope: 'admin', version: 0 },
+      config_vars.jwt.secret as string,
+      {
+        expiresIn: '1h',
+      }
+    );
   });
 
   afterAll(async () => {
@@ -106,6 +122,7 @@ describe('Settings Controller - Admin Settings Management', () => {
             price: 4999,
             description: 'Updated SOP service',
             active: true,
+            // active: true
           })
           .expect(201);
 
@@ -286,8 +303,8 @@ describe('Settings Controller - Admin Settings Management', () => {
 
       it('should return all settings', async () => {
         await GlobalSettings.create([
-          { key: 'contact_phone', value: '+91 98765 43210', type: 'contact' },
-          { key: 'payment_upi_id', value: '919871160227@upi', type: 'payment' },
+          { key: 'contact_phone', value: '+91 98765 43210', type: SettingType.STRING },
+          { key: 'payment_upi_id', value: '919871160227@upi', type: SettingType.STRING },
         ]);
 
         const response = await request(app)
@@ -312,7 +329,7 @@ describe('Settings Controller - Admin Settings Management', () => {
         await GlobalSettings.create({
           key: 'contact_phone',
           value: '+91 11111 11111',
-          type: 'contact',
+          type: SettingType.STRING,
         });
 
         const response = await request(app)
@@ -358,7 +375,7 @@ describe('Settings Controller - Admin Settings Management', () => {
         await GlobalSettings.create({
           key: 'delete_me',
           value: 'to be deleted',
-          type: 'test',
+          type: SettingType.STRING,
         });
 
         const response = await request(app)

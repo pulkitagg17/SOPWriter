@@ -1,12 +1,10 @@
 import Lead, { ILead } from '../models/Lead.js';
 import { CreateLeadDTO } from '../utils/zodSchemas.js';
-
-// Dedupe window in ms (24 hours)
-const DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000;
+import { DEDUPE, HistoryAction } from '../constants/index.js';
 
 export async function createLead(payload: CreateLeadDTO): Promise<ILead> {
   // Dedupe: same name + email + service within window
-  const since = new Date(Date.now() - DEDUPE_WINDOW_MS);
+  const since = new Date(Date.now() - DEDUPE.WINDOW_MS);
   const existing = await Lead.findOne({
     name: payload.name,
     email: payload.email,
@@ -17,7 +15,7 @@ export async function createLead(payload: CreateLeadDTO): Promise<ILead> {
   if (existing) {
     // append history about duplicate attempt
     existing.history.push({
-      action: 'DUPLICATE_ATTEMPT',
+      action: HistoryAction.DUPLICATE_ATTEMPT,
       note: 'Duplicate lead within 24h',
       by: 'public',
     });
@@ -25,7 +23,7 @@ export async function createLead(payload: CreateLeadDTO): Promise<ILead> {
     return existing;
   }
 
-  const lead = new Lead({ ...payload, history: [{ action: 'CREATED', by: 'public' }] });
+  const lead = new Lead({ ...payload, history: [{ action: HistoryAction.CREATED, by: 'public' }] });
   await lead.save();
   return lead;
 }

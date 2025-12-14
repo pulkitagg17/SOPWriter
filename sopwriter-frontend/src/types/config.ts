@@ -28,3 +28,16 @@ export interface AppConfig {
     contact: ContactConfig;
     payment: PaymentConfig;
 }
+
+// Lead interface matching backend model
+export interface Lead {
+    _id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    service: string;
+    notes?: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+}

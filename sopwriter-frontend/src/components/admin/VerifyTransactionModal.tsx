@@ -1,9 +1,14 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/lib/api";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/shared/components/ui/dialog";
+import { Button } from "@/shared/components/ui/button";
+import { Textarea } from "@/shared/components/ui/textarea";
+import { Label } from "@/shared/components/ui/label";
+import { api } from "@/core/api/client";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -55,44 +60,51 @@ export default function VerifyTransactionModal({
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>
-                        {currentAction === 'VERIFY' ? 'Verify Payment' : 'Reject Payment'}
+                        {currentAction === 'VERIFY' ? 'Verify Transaction' : 'Reject Transaction'}
                     </DialogTitle>
-                    <DialogDescription>
-                        {currentAction === 'VERIFY'
-                            ? "Confirm that you have received this payment. The user will be notified."
-                            : "Rejecting this payment will notify the user. Please provide a reason."}
-                    </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="note">
-                            {currentAction === 'VERIFY' ? 'Note (Optional)' : 'Reason for Rejection *'}
-                        </Label>
-                        <Textarea
-                            id="note"
-                            placeholder={currentAction === 'VERIFY' ? "e.g. Received in HDFC..." : "e.g. Transaction ID not found..."}
-                            value={note}
-                            onChange={(e) => setNote(e.target.value)}
-                        />
+                <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                        {currentAction === 'VERIFY'
+                            ? "Confirm verification of this payment transaction."
+                            : "Provide a reason for rejecting this transaction."}
+                    </p>
+
+                    {currentAction === 'REJECT' && (
+                        <div className="space-y-2">
+                            <Label htmlFor="note">Reason for Rejection *</Label>
+                            <Textarea
+                                id="note"
+                                value={note}
+                                onChange={(e) => setNote(e.target.value)}
+                                placeholder="Enter reason for rejection..."
+                                className="min-h-[100px]"
+                            />
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button
+                            variant="outline"
+                            onClick={onClose}
+                            disabled={isLoading}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleSubmit}
+                            disabled={isLoading || (currentAction === 'REJECT' && !note.trim())}
+                        >
+                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {currentAction === 'VERIFY' ? 'Verify' : 'Reject'}
+                        </Button>
                     </div>
                 </div>
-
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose} disabled={isLoading}>Cancel</Button>
-                    <Button
-                        onClick={handleSubmit}
-                        disabled={isLoading}
-                        variant={currentAction === 'REJECT' ? "destructive" : "default"}
-                    >
-                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Confirm {currentAction === 'VERIFY' ? 'Verify' : 'Reject'}
-                    </Button>
-                </DialogFooter>
             </DialogContent>
         </Dialog>
     );

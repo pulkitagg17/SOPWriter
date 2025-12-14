@@ -493,11 +493,11 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ---
 
-## 👨‍💻 Author
+## 👨‍💻 Authors
 
 <p align="center">
-  <strong>Pulkit Aggarwal</strong><br/>
-  <a href="https://github.com/pulkitagg17">@pulkitagg17</a>
+  <strong>Yash Garg</strong> • <strong>Pulkit Aggarwal</strong><br/>
+  <a href="https://github.com/yashcu">@yashcu</a> • <a href="https://github.com/pulkitagg17">@pulkitagg17</a>
 </p>
 
 ---
@@ -505,7 +505,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ## 📞 Support
 
 - 📧 Email: support@sopwriter.com
-- 🐛 Issues: [GitHub Issues](https://github.com/pulkitagg17/SOPWriter/issues)
+- 🐛 Issues: [GitHub Issues](https://github.com/yashcu/SOPWriter/issues)
 
 ---
 

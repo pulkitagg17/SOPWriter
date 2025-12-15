@@ -16,6 +16,7 @@ export interface ILead extends Document {
   notes?: string;
   status: LeadStatusType;
   history: IHistoryEntry[];
+  accessToken?: string; // For public viewing authorization
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,6 +68,7 @@ const LeadSchema = new Schema<ILead>(
       enum: Object.values(LeadStatus),
       default: LeadStatus.NEW,
     },
+    accessToken: { type: String, select: false }, // Hidden by default
     history: { type: [HistorySchema], default: [] },
   },
   { timestamps: true }

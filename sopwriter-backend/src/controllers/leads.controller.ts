@@ -15,6 +15,9 @@ export const createLeadHandler = asyncHandler(
     const payload = (req as any).validatedBody;
     const lead = await leadService.createLead(payload);
 
+    // Extract the temp access token attached by service
+    const accessToken = (lead as any)._tempAccessToken;
+
     // send confirmation email (fire-and-forget)
     mail
       .sendLeadConfirmation(lead.email, {
@@ -24,20 +27,28 @@ export const createLeadHandler = asyncHandler(
         adminEmail: mail.adminEmail,
         appUrl: config_vars.app.baseUrl,
       })
-      .catch(() => {}); // Email failure is non-critical
+      .catch(() => { }); // Email failure is non-critical
 
     // If this was a dedupe (history last item might be DUPLICATE_ATTEMPT), return 200 and note it
     const isDuplicate =
       lead.history &&
       lead.history.some((h: IHistoryEntry) => h.action === HistoryAction.DUPLICATE_ATTEMPT);
     const statusCode = isDuplicate ? 200 : 201;
-    res.status(statusCode).json(successResponse({ leadId: lead._id }));
+
+    res.status(statusCode).json(successResponse({ leadId: lead._id, token: accessToken }));
   }
 );
 
 export const getLeadPublic = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { leadId } = req.params;
-  const lead = await leadService.getLeadById(leadId);
+  const token = (req.query.token as string) || (req.headers['x-access-token'] as string);
+
+  if (!token) {
+    throw new NotFoundError('Lead', leadId); // Pretend not found for security
+  }
+
+  const lead = await leadService.getPublicLead(leadId, token);
+
   if (!lead) throw new NotFoundError('Lead', leadId);
 
   const lite = {
@@ -47,6 +58,7 @@ export const getLeadPublic = asyncHandler(async (req: Request, res: Response): P
     service: lead.service,
     status: lead.status,
     createdAt: lead.createdAt,
+    // Return token so frontend can persist it if needed (optional)
   };
   res.json(successResponse(lite));
 });

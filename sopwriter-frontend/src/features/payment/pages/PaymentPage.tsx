@@ -15,10 +15,11 @@ export default function Payment() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const leadId = searchParams.get("leadId");
+    const token = searchParams.get("token");
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const { config } = useConfig();
-    const { lead, isLoading, error } = useLead(leadId);
+    const { lead, isLoading, error } = useLead(leadId, token);
     const { copyToClipboard } = useClipboard();
 
     const upiUrl = config.payment.upiQrImage || "/qr.jpg";

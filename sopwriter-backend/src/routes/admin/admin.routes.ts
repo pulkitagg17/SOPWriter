@@ -6,6 +6,7 @@ import {
   loginRateLimiter,
   otpRateLimiter,
   forgotPasswordRateLimiter,
+  resetPasswordRateLimiter,
 } from '../../middlewares/rateLimiter.js';
 import {
   listTransactions,
@@ -18,6 +19,7 @@ import {
   forgotPasswordHandler,
   verifyOtpHandler,
   resetPasswordHandler,
+  refreshHandler,
 } from '../../controllers/admin.controller.js';
 import {
   getAllServices,
@@ -28,16 +30,30 @@ import {
   updateSetting,
   deleteSetting,
 } from '../../controllers/settings.controller.js';
+import {
+  loginSchema,
+  forgotPasswordSchema,
+  verifyOtpSchema,
+  resetPasswordSchema,
+  createServiceSchema,
+  updateServiceSchema,
+  updateSettingSchema,
+} from '../../utils/zodSchemas.js';
+import { validateOrigin } from '../../middlewares/security.js';
 
 const router = express.Router();
 
+// Apply CSRF protection (Origin check) to all admin routes
+router.use(validateOrigin);
+
 // Auth Routes
-router.post('/login', loginRateLimiter, loginHandler);
+router.post('/login', loginRateLimiter, validateRequest(loginSchema), loginHandler);
 router.post('/logout', logoutHandler);
 router.get('/me', requireAdmin, meHandler);
-router.post('/forgot-password', forgotPasswordRateLimiter, forgotPasswordHandler);
-router.post('/verify-otp', otpRateLimiter, verifyOtpHandler);
-router.post('/reset-password', resetPasswordHandler); // Rate limit? Maybe generic limiter.
+router.post('/forgot-password', forgotPasswordRateLimiter, validateRequest(forgotPasswordSchema), forgotPasswordHandler);
+router.post('/verify-otp', otpRateLimiter, validateRequest(verifyOtpSchema), verifyOtpHandler);
+router.post('/reset-password', resetPasswordRateLimiter, validateRequest(resetPasswordSchema), resetPasswordHandler);
+router.post('/refresh', refreshHandler); // No auth middleware, relies on cookie
 
 // apply auth to all admin routes below
 router.use(requireAdmin);
@@ -53,13 +69,13 @@ router.post(
 
 // Services Management
 router.get('/services', getAllServices);
-router.post('/services', createService);
-router.put('/services/:id', updateService);
+router.post('/services', validateRequest(createServiceSchema), createService);
+router.put('/services/:id', validateRequest(updateServiceSchema), updateService);
 router.delete('/services/:id', deleteService);
 
 // Settings Management
 router.get('/settings', getAllSettings);
-router.put('/settings/:key', updateSetting);
+router.put('/settings/:key', validateRequest(updateSettingSchema), updateSetting);
 router.delete('/settings/:key', deleteSetting);
 
 export default router;

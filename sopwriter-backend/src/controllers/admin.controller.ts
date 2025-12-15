@@ -1,10 +1,11 @@
 import type { Request, Response } from 'express';
 import Transaction from '../models/Transaction.js';
 import Lead from '../models/Lead.js';
+import AuditLog from '../models/AuditLog.js';
 import * as transactionService from '../services/transaction.service.js';
 import { MailService } from '../services/mail.service.js';
 import { config_vars } from '../config/env.js';
-import { NotFoundError } from '../utils/errors.js';
+import { NotFoundError, AuthenticationError } from '../utils/errors.js';
 import { escapeRegex } from '../utils/sanitize.js';
 import { parsePagination, buildPaginationMeta } from '../utils/pagination.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -22,14 +23,32 @@ export const loginHandler = asyncHandler(async (req: Request, res: Response) => 
 
   const result = await authService.login(email, password);
 
-  res.cookie('admin_token', result.token, {
+  res.cookie('admin_token', result.accessToken, {
     httpOnly: true,
     secure: config_vars.nodeEnv === 'production',
     sameSite: 'strict',
-    maxAge: 15 * 60 * 1000, // 15 mins
+    path: '/api/admin', // Scope to admin API
+    maxAge: 10 * 60 * 1000, // 10 mins (Short-lived)
+  });
+
+  res.cookie('refresh_token', result.refreshToken, {
+    httpOnly: true,
+    secure: config_vars.nodeEnv === 'production',
+    sameSite: 'strict',
+    path: '/api/admin/refresh', // Scope to refresh endpoint
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
   logger.info({ event: 'login_success', user: email, ip }, 'Admin logged in');
+
+  // Audit Log
+  await AuditLog.create({
+    adminId: result.admin._id,
+    action: 'ADMIN_LOGIN',
+    ip,
+    userAgent: req.get('user-agent'),
+    status: 'SUCCESS'
+  });
 
   res.json(successResponse({ message: 'Logged in successfully' }));
 });
@@ -39,9 +58,52 @@ export const meHandler = asyncHandler(async (req: Request, res: Response) => {
   res.json(successResponse({ admin: { id: admin.sub, email: admin.email, role: admin.scope } }));
 });
 
-export const logoutHandler = asyncHandler(async (_req: Request, res: Response) => {
-  res.clearCookie('admin_token');
+export const logoutHandler = asyncHandler(async (req: Request, res: Response) => {
+  const refreshToken = req.cookies.refresh_token;
+  if (refreshToken) {
+    await authService.revokeRefreshToken(refreshToken);
+  }
+
+  res.clearCookie('admin_token', { path: '/' }); // Clear root just in case
+  res.clearCookie('admin_token', { path: '/api/admin' }); // Clear scoped
+  res.clearCookie('refresh_token', { path: '/api/admin/refresh' });
+
+  // Cleanup legacy/vendor cookies
+  res.clearCookie('__session');
+  res.clearCookie('__clerk_db_jwt');
+  res.clearCookie('jwt_token');
+
+  // Audit Log (if user is logged in, we have user info, but logout might happen when expired)
+  // We can skip logging user ID if simpler, or decode it.
+
   res.json(successResponse({ message: 'Logged out' }));
+});
+
+export const refreshHandler = asyncHandler(async (req: Request, res: Response) => {
+  const refreshToken = req.cookies.refresh_token;
+  if (!refreshToken) {
+    throw new AuthenticationError('Refresh token missing');
+  }
+
+  const result = await authService.refreshSession(refreshToken);
+
+  res.cookie('admin_token', result.accessToken, {
+    httpOnly: true,
+    secure: config_vars.nodeEnv === 'production',
+    sameSite: 'strict',
+    path: '/api/admin',
+    maxAge: 10 * 60 * 1000,
+  });
+
+  res.cookie('refresh_token', result.refreshToken, {
+    httpOnly: true,
+    secure: config_vars.nodeEnv === 'production',
+    sameSite: 'strict',
+    path: '/api/admin/refresh',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  res.json(successResponse({ message: 'Session refreshed' }));
 });
 
 export const forgotPasswordHandler = asyncHandler(async (req: Request, res: Response) => {
@@ -76,6 +138,16 @@ export const resetPasswordHandler = asyncHandler(async (req: Request, res: Respo
   res.clearCookie('admin_token');
 
   logger.info({ event: 'password_reset', ip }, 'Password reset successfully');
+
+  // Audit Log (adminId might be inferred from token payload if we had it, but here we just know it happened via OTP)
+  // We can look up admin by resetToken if we decoded it earlier in service, but service handles it.
+  // For now log the IP.
+  await AuditLog.create({
+    action: 'PASSWORD_RESET',
+    ip,
+    userAgent: req.get('user-agent'),
+    status: 'SUCCESS'
+  });
 
   res.json(
     successResponse({ message: 'Password reset successfully. Please login with new password.' })
@@ -183,8 +255,19 @@ export const verifyTransactionHandler = asyncHandler(async (req: Request, res: R
         note,
         appUrl: config_vars.app.baseUrl,
       })
-      .catch(() => {});
+      .catch(() => { });
   }
+
+  // Audit Log
+  await AuditLog.create({
+    adminId: admin.adminId || admin.id || admin._id || admin.sub,
+    action: action === 'VERIFY' ? 'TRANSACTION_VERIFY' : 'TRANSACTION_REJECT',
+    targetId: id,
+    details: { note },
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+    status: 'SUCCESS'
+  });
 
   res.json(
     successResponse({

@@ -13,7 +13,7 @@ export const VALIDATION = {
   MIN_NAME_LENGTH: 2,
   MIN_SERVICE_LENGTH: 1,
   MIN_PASSWORD_LENGTH: 8,
-  MIN_JWT_SECRET_LENGTH: 32,
+  MIN_JWT_SECRET_LENGTH: 64, // 512 bits minimum for production security
 } as const;
 
 export const RATE_LIMIT = {

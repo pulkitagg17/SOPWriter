@@ -42,9 +42,13 @@ export default function WizardContainer() {
 
     const handleSubmit = useCallback(async () => {
         try {
-            const leadId = await createLead(payload);
-            if (leadId) {
-                navigate(`/payment?leadId=${leadId}`);
+            const result = await createLead(payload);
+            if (result && result.leadId) {
+                // If token is present, include it in the URL
+                const url = result.token
+                    ? `/payment?leadId=${result.leadId}&token=${result.token}`
+                    : `/payment?leadId=${result.leadId}`;
+                navigate(url);
             }
         } catch (error) {
             console.error("Failed to submit lead:", error);

@@ -55,10 +55,18 @@ const parseEnv = () => {
         `JWT_SECRET must be at least ${VALIDATION.MIN_JWT_SECRET_LENGTH} characters in production`
       );
     }
+    // Check for default patterns
+    if (parsed.data.JWT_SECRET.toLowerCase().includes('change') || parsed.data.JWT_SECRET.toLowerCase().includes('default')) {
+      throw new Error('PRODUCTION SECURITY ERROR: JWT_SECRET appears to be default/insecure. Change immediately.');
+    }
+
     if (parsed.data.ADMIN_PASSWORD.length < VALIDATION.MIN_PASSWORD_LENGTH) {
       throw new Error(
         `ADMIN_PASSWORD must be at least ${VALIDATION.MIN_PASSWORD_LENGTH} characters in production`
       );
+    }
+    if (parsed.data.ADMIN_PASSWORD.toLowerCase().includes('change') || parsed.data.ADMIN_PASSWORD.toLowerCase().includes('default')) {
+      throw new Error('PRODUCTION SECURITY ERROR: ADMIN_PASSWORD appears to be default/insecure. Change immediately.');
     }
   }
 

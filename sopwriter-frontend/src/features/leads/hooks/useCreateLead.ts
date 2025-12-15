@@ -25,12 +25,17 @@ export function useCreateLead() {
                 signal: controller.signal
             });
             // Backend returns { success: true, data: { leadId: "..." } }
-            const leadId = response.data.data?.leadId || response.data.leadId || response.data.id || response.data._id;
+            // Backend returns { success: true, data: { leadId: "...", token: "..." } }
+            // Backend returns { success: true, data: { leadId: "...", token: "..." } }
+            const responseData = response.data.data;
+            const leadId = responseData?.leadId;
+            const token = responseData?.token;
+
             if (!leadId) {
                 console.error("Unexpected response format:", response.data);
                 throw new Error("Invalid response from server");
             }
-            return leadId;
+            return { leadId, token };
         } catch (err: unknown) {
             // Ignore abort errors
             if (err instanceof Error && err.name === 'AbortError') {

@@ -16,9 +16,10 @@ interface UseLeadResult {
 /**
  * Custom hook for fetching lead data by ID
  * @param leadId - The lead ID to fetch
+ * @param token - optional access token for IDOR protection
  * @returns Object containing lead data, loading state, error, and refetch function
  */
-export function useLead(leadId: string | null): UseLeadResult {
+export function useLead(leadId: string | null, token?: string | null): UseLeadResult {
     const [lead, setLead] = useState<Lead | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -33,7 +34,11 @@ export function useLead(leadId: string | null): UseLeadResult {
         setError(null);
 
         try {
-            const res = await api.get(`${ENDPOINTS.LEADS}/${leadId}`);
+            const endpoint = token
+                ? `${ENDPOINTS.LEADS}/${leadId}?token=${token}`
+                : `${ENDPOINTS.LEADS}/${leadId}`;
+
+            const res = await api.get(endpoint);
             if (res.data.success) {
                 setLead(res.data.data);
                 setError(null);

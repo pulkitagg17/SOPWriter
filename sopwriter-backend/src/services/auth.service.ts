@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { Admin, IAdmin } from '../models/Admin.js';
+import RefreshToken from '../models/RefreshToken.js';
 import { config_vars } from '../config/env.js';
 import { MailService } from './mail.service.js';
 import { OTP, ADMIN_SECURITY, VALIDATION } from '../constants/limits.js';
@@ -15,7 +16,7 @@ import {
 export class AuthService {
   private static instance: AuthService;
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): AuthService {
     if (!AuthService.instance) {
@@ -64,9 +65,10 @@ export class AuthService {
     admin.lockUntil = null;
     await admin.save();
 
-    const token = this.generateToken(admin);
+    const accessToken = this.generateToken(admin);
+    const refreshToken = await this.generateRefreshToken(admin);
 
-    return { token, admin };
+    return { accessToken, refreshToken, admin };
   }
 
   async forgotPassword(email: string) {
@@ -94,7 +96,8 @@ export class AuthService {
 
     // Generate OTP
     const otp = crypto.randomInt(100000, 999999).toString();
-    const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+    // Use bcrypt for OTP hashing (adds salt and work factor)
+    const otpHash = await bcrypt.hash(otp, 10);
 
     admin.otpHash = otpHash;
     admin.otpExpires = new Date(Date.now() + OTP.VALIDITY_MINUTES * 60 * 1000);
@@ -125,8 +128,8 @@ export class AuthService {
     }
 
     // Verify Hash
-    const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
-    if (otpHash !== admin.otpHash) {
+    const isMatch = await bcrypt.compare(otp, admin.otpHash);
+    if (!isMatch) {
       admin.otpAttempts += 1;
       await admin.save();
       throw new ValidationError('Invalid OTP');
@@ -210,5 +213,48 @@ export class AuthService {
       config_vars.jwt.secret,
       { expiresIn: '15m' }
     );
+  }
+
+  async generateRefreshToken(admin: IAdmin) {
+    const token = crypto.randomBytes(40).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await RefreshToken.create({
+      token,
+      adminId: admin._id,
+      expiresAt,
+    });
+
+    return token;
+  }
+
+  async refreshSession(token: string) {
+    const refreshToken = await RefreshToken.findOne({ token }).populate('adminId');
+
+    if (!refreshToken || refreshToken.revoked || refreshToken.expiresAt < new Date()) {
+      // If using a revoked token, we should probably revoke all descendent tokens (security)
+      // For now, just fail.
+      throw new AuthenticationError('Invalid or expired refresh token');
+    }
+
+    const admin = await Admin.findById(refreshToken.adminId);
+    if (!admin) throw new AuthenticationError('Admin not found');
+
+    // Rotation: Revoke old, issue new
+    refreshToken.revoked = true;
+    await refreshToken.save();
+
+    const newRefreshToken = await this.generateRefreshToken(admin as IAdmin);
+    // Link rotation (optional, stored in replacingToken if schema supports it, I added it)
+    refreshToken.replacingToken = newRefreshToken;
+    await refreshToken.save();
+
+    const newAccessToken = this.generateToken(admin as IAdmin);
+
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken, admin };
+  }
+
+  async revokeRefreshToken(token: string) {
+    await RefreshToken.updateOne({ token }, { revoked: true });
   }
 }

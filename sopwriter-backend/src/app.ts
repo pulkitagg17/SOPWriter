@@ -18,7 +18,21 @@ export function createApp() {
   app.set('trust proxy', 1);
 
   // Security & compression
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        connectSrc: ["'self'", config_vars.cors.origin[0], ...config_vars.cors.origin], // Allow configured origins
+        frameAncestors: ["'none'"],
+      },
+    },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  }));
   app.use(cors({ origin: config_vars.cors.origin, credentials: true }));
   app.use(
     compression({

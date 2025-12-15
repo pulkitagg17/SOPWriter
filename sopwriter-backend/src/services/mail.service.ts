@@ -2,6 +2,7 @@ import sgMail from '@sendgrid/mail';
 import nodemailer from 'nodemailer';
 import { config_vars } from '../config/env.js';
 import { RETRY } from '../constants/index.js';
+import { sanitizeText } from '../utils/sanitize.js';
 
 type Provider = 'sendgrid' | 'smtp' | 'memory';
 
@@ -144,8 +145,9 @@ export class MailService {
     to: string,
     vars: { name: string; leadId: string; service: string; adminEmail: string; appUrl: string }
   ) {
-    const subject = `Request Received — ${vars.service}`;
-    const text = `Hi ${vars.name},
+    const subject = `Request Received — ${sanitizeText(vars.service)}`;
+    const safeName = sanitizeText(vars.name);
+    const text = `Hi ${safeName},
 
 We received your request. Your Reference ID is: ${vars.leadId}
 
@@ -154,7 +156,7 @@ Please proceed to payment (or continue later) at: ${vars.appUrl}/payment?leadId=
 If you have any questions, reply to this email.
 
 Thanks.`;
-    const html = `<p>Hi ${vars.name},</p><p>We received your request.</p><p>Your Reference ID is: <strong>${vars.leadId}</strong></p><p>Please <a href="${vars.appUrl}/payment?leadId=${vars.leadId}">click here to complete your payment</a>.</p><p>You can also use this Reference ID to track your application on our website later.</p><p>Thanks.</p>`;
+    const html = `<p>Hi ${safeName},</p><p>We received your request.</p><p>Your Reference ID is: <strong>${vars.leadId}</strong></p><p>Please <a href="${vars.appUrl}/payment?leadId=${vars.leadId}">click here to complete your payment</a>.</p><p>You can also use this Reference ID to track your application on our website later.</p><p>Thanks.</p>`;
     return this.send(to, subject, text, { html });
   }
 
@@ -165,8 +167,8 @@ Thanks.`;
     leadEmail: string;
     appUrl: string;
   }) {
-    const subject = `Payment declared: ${vars.transactionId || '(no-id)'} for lead ${vars.leadId}`;
-    const text = `Transaction declared for lead ${vars.leadId} (${vars.leadName} / ${vars.leadEmail}).\nView: ${vars.appUrl}/admin/transactions?leadId=${vars.leadId}`;
+    const subject = `Payment declared: ${sanitizeText(vars.transactionId || '(no-id)')} for lead ${vars.leadId}`;
+    const text = `Transaction declared for lead ${vars.leadId} (${sanitizeText(vars.leadName)} / ${sanitizeText(vars.leadEmail)}).\nView: ${vars.appUrl}/admin/transactions?leadId=${vars.leadId}`;
     return this.send(this.adminEmail, subject, text);
   }
 
@@ -181,8 +183,8 @@ Thanks.`;
     }
   ) {
     const subject = `Payment ${vars.status} for Lead ${vars.leadId}`;
-    const noteText = vars.note ? `Note from admin: ${vars.note}\n` : '';
-    const text = `Hi ${vars.name},
+    const noteText = vars.note ? `Note from admin: ${sanitizeText(vars.note)}\n` : '';
+    const text = `Hi ${sanitizeText(vars.name)},
 
 Your payment for lead ${vars.leadId} has been ${vars.status}.
 ${noteText}You can view details at ${vars.appUrl}/leads/${vars.leadId}

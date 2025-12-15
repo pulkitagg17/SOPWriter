@@ -65,3 +65,12 @@ export const otpRateLimiter = rateLimit({
   legacyHeaders: false,
   handler: rateLimitHandler,
 });
+
+// Rate limiter for reset-password (prevent brute force)
+export const resetPasswordRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 3, // 3 attempts per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: rateLimitHandler,
+});

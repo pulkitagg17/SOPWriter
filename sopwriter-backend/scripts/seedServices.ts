@@ -3,9 +3,11 @@ import dotenv from 'dotenv';
 import Service from '../src/models/Service.js';
 import GlobalSettings from '../src/models/GlobalSettings.js';
 
+import { config_vars } from '../src/config/env.js';
+
 dotenv.config();
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/phase1-dev';
+const MONGO_URI = process.env.MONGO_URI || config_vars.mongoUri;
 
 const SERVICES = [
     // Documents

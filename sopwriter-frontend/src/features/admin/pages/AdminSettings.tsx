@@ -100,10 +100,13 @@ export default function AdminSettings() {
 
         try {
             if (isCreatingService) {
-                await api.post("/admin/services", editingService);
+                // Remove _id from payload for creation
+                const { _id, ...payload } = editingService;
+                await api.post("/admin/services", payload);
                 toast.success("Service created successfully");
             } else {
-                await api.put(`/admin/services/${editingService._id}`, editingService);
+                const { _id, ...payload } = editingService;
+                await api.put(`/admin/services/${editingService._id}`, payload);
                 toast.success("Service updated successfully");
             }
             setEditingService(null);
@@ -155,11 +158,8 @@ export default function AdminSettings() {
 
         try {
             // Update all services
-            await Promise.all(
-                services.map(service =>
-                    api.put(`/admin/services/${service._id}`, { ...service, active })
-                )
-            );
+            await api.put("/admin/services/bulk", { active });
+
             toast.success(`All services ${active ? "enabled" : "disabled"}`);
             fetchData();
         } catch {

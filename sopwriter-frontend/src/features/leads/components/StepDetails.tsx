@@ -40,7 +40,24 @@ export default function StepDetails({
     }, [wizard, errors]);
 
     const handleSubmit = useCallback(() => {
-        // Validation Logic for Phone
+        // Clear previous errors
+        setErrors({});
+
+        // 1. Validate Name
+        const nameResult = detailsSchema.shape.name.safeParse(wizard.state.details.name);
+        if (!nameResult.success) {
+            setErrors({ name: nameResult.error.issues[0].message });
+            return;
+        }
+
+        // 2. Validate Email
+        const emailResult = detailsSchema.shape.email.safeParse(wizard.state.details.email);
+        if (!emailResult.success) {
+            setErrors({ email: emailResult.error.issues[0].message });
+            return;
+        }
+
+        // 3. Validation Logic for Phone
         const currentPhone = wizard.state.details.phone || "";
         let prefix = "+91";
         let numberPart = "";
@@ -66,7 +83,7 @@ export default function StepDetails({
 
         const fullPhoneToValidate = `${prefix}${numberPart}`;
 
-        // 1. LibPhoneNumber Global Validation
+        // LibPhoneNumber Global Validation
         // This handles length, format, and validity for ALL countries including India.
         if (!isValidPhoneNumber(fullPhoneToValidate)) {
             setErrors((prev) => ({ ...prev, phone: "Invalid phone number for the selected country code" }));
@@ -78,6 +95,7 @@ export default function StepDetails({
             phone: cleanPhone
         });
 
+        // Final schema check (should pass if individual checks passed, but good for sanity)
         const result = detailsSchema.safeParse({
             ...wizard.state.details,
             // Override phone in validation check just in case, though we updated state
@@ -134,7 +152,7 @@ export default function StepDetails({
                             placeholder="Enter your full name"
                             value={wizard.state.details.name}
                             onChange={(e) => handleChange("name", e.target.value)}
-                            className={`w-full pl-10 border-2 px-4 py-3 rounded-xl text-base bg-background/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all ${errors.name ? "border-destructive" : "border-border"
+                            className={`w-full pl-10 border-2 px-4 py-3 rounded-xl text-base bg-background/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all placeholder:text-muted-foreground/30 ${errors.name ? "border-destructive" : "border-border"
                                 }`}
                             aria-invalid={!!errors.name}
                             aria-describedby={errors.name ? "name-error" : undefined}
@@ -162,7 +180,7 @@ export default function StepDetails({
                             placeholder="your.email@example.com"
                             value={wizard.state.details.email}
                             onChange={(e) => handleChange("email", e.target.value)}
-                            className={`w-full pl-10 border-2 px-4 py-3 rounded-xl text-base bg-background/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all ${errors.email ? "border-destructive" : "border-border"
+                            className={`w-full pl-10 border-2 px-4 py-3 rounded-xl text-base bg-background/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all placeholder:text-muted-foreground/30 ${errors.email ? "border-destructive" : "border-border"
                                 }`}
                             aria-invalid={!!errors.email}
                             aria-describedby={errors.email ? "email-error" : undefined}
@@ -185,8 +203,8 @@ export default function StepDetails({
                     <div className="flex gap-3">
                         <input
                             type="text"
-                            className="w-24 px-3 py-3 border-2 border-border rounded-xl text-base text-center bg-background/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
-                            value={wizard.state.details.phone?.includes(' ') ? wizard.state.details.phone.split(' ')[0] : "+91"}
+                            className="w-24 px-3 py-3 border-2 border-border rounded-xl text-base text-center bg-background/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all placeholder:text-muted-foreground/30"
+                            value={wizard.state.details.phone?.includes(' ') ? wizard.state.details.phone.split(' ')[0] : ""}
                             onChange={(e) => {
                                 let val = e.target.value;
                                 // Automatically add + if missing and not empty
@@ -218,7 +236,7 @@ export default function StepDetails({
                                     }
                                     handleChange("phone", `${currentPrefix} ${val}`);
                                 }}
-                                className={`w-full pl-10 border-2 px-4 py-3 rounded-xl text-base bg-background/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all ${errors.phone ? "border-destructive" : "border-border"
+                                className={`w-full pl-10 border-2 px-4 py-3 rounded-xl text-base bg-background/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all placeholder:text-muted-foreground/30 ${errors.phone ? "border-destructive" : "border-border"
                                     }`}
                                 aria-invalid={!!errors.phone}
                                 aria-describedby={errors.phone ? "phone-error" : undefined}
@@ -246,7 +264,7 @@ export default function StepDetails({
                         value={wizard.state.details.notes || ""}
                         onChange={(e) => handleChange("notes", e.target.value)}
                         rows={4}
-                        className="w-full border-2 border-border px-4 py-3 rounded-xl text-base bg-background/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all resize-none"
+                        className="w-full border-2 border-border px-4 py-3 rounded-xl text-base bg-background/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all resize-none placeholder:text-muted-foreground/30"
                         maxLength={1000}
                         aria-describedby="notes-help"
                     />

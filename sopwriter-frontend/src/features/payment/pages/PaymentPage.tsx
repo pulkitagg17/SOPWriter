@@ -97,6 +97,7 @@ export default function Payment() {
                     paymentStatus && (
                         <PaymentConfirmationPanel
                             leadId={leadId}
+                            status={lead.status}
                         />
                     )
                 )}

@@ -6,9 +6,10 @@ import { z } from 'zod';
  */
 export const detailsSchema = z.object({
     name: z.string()
+        .trim()
         .min(2, 'Name must be at least 2 characters')
         .max(100, 'Name cannot exceed 100 characters')
-        .trim(),
+        .regex(/^[a-zA-Z\s\-\.']+$/, 'Name can only contain letters and spaces'),
 
     email: z.string()
         .email('Please enter a valid email address')

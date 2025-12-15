@@ -26,7 +26,7 @@ export const loginHandler = asyncHandler(async (req: Request, res: Response) => 
   res.cookie('admin_token', result.accessToken, {
     httpOnly: true,
     secure: config_vars.nodeEnv === 'production',
-    sameSite: 'strict',
+    sameSite: config_vars.nodeEnv === 'production' ? 'none' : 'lax',
     path: '/api/admin', // Scope to admin API
     maxAge: 10 * 60 * 1000, // 10 mins (Short-lived)
   });
@@ -34,7 +34,7 @@ export const loginHandler = asyncHandler(async (req: Request, res: Response) => 
   res.cookie('refresh_token', result.refreshToken, {
     httpOnly: true,
     secure: config_vars.nodeEnv === 'production',
-    sameSite: 'strict',
+    sameSite: config_vars.nodeEnv === 'production' ? 'none' : 'lax',
     path: '/api/admin/refresh', // Scope to refresh endpoint
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
@@ -90,7 +90,7 @@ export const refreshHandler = asyncHandler(async (req: Request, res: Response) =
   res.cookie('admin_token', result.accessToken, {
     httpOnly: true,
     secure: config_vars.nodeEnv === 'production',
-    sameSite: 'strict',
+    sameSite: config_vars.nodeEnv === 'production' ? 'none' : 'lax',
     path: '/api/admin',
     maxAge: 10 * 60 * 1000,
   });
@@ -98,7 +98,7 @@ export const refreshHandler = asyncHandler(async (req: Request, res: Response) =
   res.cookie('refresh_token', result.refreshToken, {
     httpOnly: true,
     secure: config_vars.nodeEnv === 'production',
-    sameSite: 'strict',
+    sameSite: config_vars.nodeEnv === 'production' ? 'none' : 'lax',
     path: '/api/admin/refresh',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });

@@ -23,21 +23,18 @@ export const loginHandler = asyncHandler(async (req: Request, res: Response) => 
 
   const result = await authService.login(email, password);
 
-  // Robust production check: Render sets RENDER=true
-  const isProduction = config_vars.nodeEnv === 'production' || process.env.RENDER === 'true';
-
   res.cookie('admin_token', result.accessToken, {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax', // Must be 'none' for cross-site (Vercel -> Render)
-    path: '/', // Global scope to prevent path matching issues
+    secure: true, // Must be true for SameSite=None
+    sameSite: 'none', // Must be 'none' for cross-site (Vercel -> Render)
+    path: '/',
     maxAge: 10 * 60 * 1000,
   });
 
   res.cookie('refresh_token', result.refreshToken, {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
+    secure: true, // Must be true for SameSite=None
+    sameSite: 'none', // Must be 'none' for cross-site (Vercel -> Render)
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
@@ -67,11 +64,19 @@ export const logoutHandler = asyncHandler(async (req: Request, res: Response) =>
     await authService.revokeRefreshToken(refreshToken);
   }
 
-  // Clear all potential variants
+  // Clear cookies with exact same options as set
+  const cookieOptions: any = {
+    path: '/',
+    secure: true,
+    sameSite: 'none'
+  };
+
+  res.clearCookie('admin_token', cookieOptions);
+  res.clearCookie('refresh_token', cookieOptions);
+
+  // Fallbacks for safety
   res.clearCookie('admin_token', { path: '/' });
-  res.clearCookie('admin_token', { path: '/api/admin' });
   res.clearCookie('refresh_token', { path: '/' });
-  res.clearCookie('refresh_token', { path: '/api/admin/refresh' });
 
   // Cleanup legacy/vendor cookies
   res.clearCookie('__session');
@@ -88,20 +93,20 @@ export const refreshHandler = asyncHandler(async (req: Request, res: Response) =
   }
 
   const result = await authService.refreshSession(refreshToken);
-  const isProduction = config_vars.nodeEnv === 'production' || process.env.RENDER === 'true';
 
+  // Force secure settings for refresh as well
   res.cookie('admin_token', result.accessToken, {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
+    secure: true,
+    sameSite: 'none',
     path: '/',
     maxAge: 10 * 60 * 1000,
   });
 
   res.cookie('refresh_token', result.refreshToken, {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
+    secure: true,
+    sameSite: 'none',
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });

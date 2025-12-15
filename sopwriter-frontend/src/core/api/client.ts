@@ -24,7 +24,13 @@ api.interceptors.response.use(
             originalRequest._retry = true;
 
             // If the error comes from login or refresh endpoint, don't retry, just fail
-            if (originalRequest.url?.includes('/login') || originalRequest.url?.includes('/refresh')) {
+            if (
+                originalRequest.url?.includes('/login') ||
+                originalRequest.url?.includes('/refresh') ||
+                originalRequest.url?.includes('/forgot-password') ||
+                originalRequest.url?.includes('/verify-otp') ||
+                originalRequest.url?.includes('/reset-password')
+            ) {
                 return Promise.reject(error);
             }
 

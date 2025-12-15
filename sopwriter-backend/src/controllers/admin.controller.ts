@@ -23,20 +23,23 @@ export const loginHandler = asyncHandler(async (req: Request, res: Response) => 
 
   const result = await authService.login(email, password);
 
+  // Robust production check: Render sets RENDER=true
+  const isProduction = config_vars.nodeEnv === 'production' || process.env.RENDER === 'true';
+
   res.cookie('admin_token', result.accessToken, {
     httpOnly: true,
-    secure: config_vars.nodeEnv === 'production',
-    sameSite: config_vars.nodeEnv === 'production' ? 'none' : 'lax',
-    path: '/api/admin', // Scope to admin API
-    maxAge: 10 * 60 * 1000, // 10 mins (Short-lived)
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax', // Must be 'none' for cross-site (Vercel -> Render)
+    path: '/', // Global scope to prevent path matching issues
+    maxAge: 10 * 60 * 1000,
   });
 
   res.cookie('refresh_token', result.refreshToken, {
     httpOnly: true,
-    secure: config_vars.nodeEnv === 'production',
-    sameSite: config_vars.nodeEnv === 'production' ? 'none' : 'lax',
-    path: '/api/admin/refresh', // Scope to refresh endpoint
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
   logger.info({ event: 'login_success', user: email, ip }, 'Admin logged in');
@@ -64,17 +67,16 @@ export const logoutHandler = asyncHandler(async (req: Request, res: Response) =>
     await authService.revokeRefreshToken(refreshToken);
   }
 
-  res.clearCookie('admin_token', { path: '/' }); // Clear root just in case
-  res.clearCookie('admin_token', { path: '/api/admin' }); // Clear scoped
+  // Clear all potential variants
+  res.clearCookie('admin_token', { path: '/' });
+  res.clearCookie('admin_token', { path: '/api/admin' });
+  res.clearCookie('refresh_token', { path: '/' });
   res.clearCookie('refresh_token', { path: '/api/admin/refresh' });
 
   // Cleanup legacy/vendor cookies
   res.clearCookie('__session');
   res.clearCookie('__clerk_db_jwt');
   res.clearCookie('jwt_token');
-
-  // Audit Log (if user is logged in, we have user info, but logout might happen when expired)
-  // We can skip logging user ID if simpler, or decode it.
 
   res.json(successResponse({ message: 'Logged out' }));
 });
@@ -86,20 +88,21 @@ export const refreshHandler = asyncHandler(async (req: Request, res: Response) =
   }
 
   const result = await authService.refreshSession(refreshToken);
+  const isProduction = config_vars.nodeEnv === 'production' || process.env.RENDER === 'true';
 
   res.cookie('admin_token', result.accessToken, {
     httpOnly: true,
-    secure: config_vars.nodeEnv === 'production',
-    sameSite: config_vars.nodeEnv === 'production' ? 'none' : 'lax',
-    path: '/api/admin',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    path: '/',
     maxAge: 10 * 60 * 1000,
   });
 
   res.cookie('refresh_token', result.refreshToken, {
     httpOnly: true,
-    secure: config_vars.nodeEnv === 'production',
-    sameSite: config_vars.nodeEnv === 'production' ? 'none' : 'lax',
-    path: '/api/admin/refresh',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 

@@ -11,8 +11,14 @@ export const api = axios.create({
 
 
 
-// Request interceptor can be used for other things, but token logic is handled by cookies now.
-// api.interceptors.request.use((config) => { ... });
+// Request interceptor: Attach fallback token if cookies fail
+api.interceptors.request.use((config) => {
+    const token = sessionStorage.getItem('__admin_token_fallback');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
 
 api.interceptors.response.use(
     (response) => response,

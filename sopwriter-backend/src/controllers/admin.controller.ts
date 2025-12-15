@@ -50,7 +50,10 @@ export const loginHandler = asyncHandler(async (req: Request, res: Response) => 
     status: 'SUCCESS'
   });
 
-  res.json(successResponse({ message: 'Logged in successfully' }));
+  res.json(successResponse({
+    message: 'Logged in successfully',
+    token: result.accessToken // 1. Return token for fallback
+  }));
 });
 
 export const meHandler = asyncHandler(async (req: Request, res: Response) => {
@@ -111,7 +114,10 @@ export const refreshHandler = asyncHandler(async (req: Request, res: Response) =
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
-  res.json(successResponse({ message: 'Session refreshed' }));
+  res.json(successResponse({
+    message: 'Session refreshed',
+    token: result.accessToken // 2. Return token for fallback
+  }));
 });
 
 export const forgotPasswordHandler = asyncHandler(async (req: Request, res: Response) => {

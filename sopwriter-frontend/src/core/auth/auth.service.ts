@@ -2,14 +2,23 @@ import { api } from "../api/client";
 
 
 
+const TOKEN_KEY = '__admin_token_fallback';
+
 export const auth = {
     login: async (email: string, password: string) => {
         const response = await api.post("/admin/login", { email, password });
+        if (response.data.success && response.data.data?.token) {
+            sessionStorage.setItem(TOKEN_KEY, response.data.data.token);
+        }
         return response.data.success;
     },
     logout: async () => {
-        await api.post("/admin/logout");
-        window.location.href = "/admin/login";
+        try {
+            await api.post("/admin/logout");
+        } finally {
+            sessionStorage.removeItem(TOKEN_KEY);
+            window.location.href = "/admin/login";
+        }
     },
     checkSession: async () => {
         try {

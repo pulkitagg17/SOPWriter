@@ -1,4 +1,4 @@
-import { Check, Loader2 } from "lucide-react";
+import { Check } from "lucide-react";
 import { LEAD_STATUSES } from "@/features/payment/utils/paymentStatus.constants";
 
 interface PaymentConfirmationPanelProps {

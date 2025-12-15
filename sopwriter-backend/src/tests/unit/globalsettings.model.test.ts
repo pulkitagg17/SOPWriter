@@ -10,6 +10,7 @@ describe('GlobalSettings Model', () => {
     mongoServer = await MongoMemoryServer.create();
     const mongoUri = mongoServer.getUri();
     await mongoose.connect(mongoUri);
+    await GlobalSettings.init(); // Ensure indexes are built
   });
 
   afterAll(async () => {

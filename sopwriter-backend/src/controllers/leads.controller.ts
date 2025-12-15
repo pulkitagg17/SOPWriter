@@ -43,9 +43,10 @@ export const getLeadPublic = asyncHandler(async (req: Request, res: Response): P
   const { leadId } = req.params;
   const token = (req.query.token as string) || (req.headers['x-access-token'] as string);
 
-  if (!token) {
-    throw new NotFoundError('Lead', leadId); // Pretend not found for security
-  }
+  // Token check removed to support ID-based tracking
+  // if (!token) {
+  //   throw new NotFoundError('Lead', leadId);
+  // }
 
   const lead = await leadService.getPublicLead(leadId, token);
 

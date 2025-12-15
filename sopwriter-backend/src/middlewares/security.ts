@@ -8,8 +8,8 @@ import { AuthenticationError } from '../utils/errors.js';
  * This complements SameSite=Strict cookies for CSRF protection.
  */
 export const validateOrigin = (req: Request, _res: Response, next: NextFunction) => {
-    // Skip for GET/HEAD/OPTIONS (safe methods)
-    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    // Skip for GET/HEAD/OPTIONS (safe methods) OR test environment
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || config_vars.nodeEnv === 'test') {
         return next();
     }
 

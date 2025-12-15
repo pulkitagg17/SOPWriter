@@ -26,6 +26,7 @@ import {
   createService,
   updateService,
   deleteService,
+  bulkUpdateServices,
   getAllSettings,
   updateSetting,
   deleteSetting,
@@ -70,6 +71,7 @@ router.post(
 // Services Management
 router.get('/services', getAllServices);
 router.post('/services', validateRequest(createServiceSchema), createService);
+router.put('/services/bulk', bulkUpdateServices);
 router.put('/services/:id', validateRequest(updateServiceSchema), updateService);
 router.delete('/services/:id', deleteService);
 

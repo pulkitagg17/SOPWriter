@@ -76,6 +76,22 @@ export const deleteService = asyncHandler(async (req: Request, res: Response) =>
   res.json(successResponse({ message: 'Service deleted' }));
 });
 
+export const bulkUpdateServices = asyncHandler(async (req: Request, res: Response) => {
+  const { active } = req.body;
+
+  if (typeof active !== 'boolean') {
+    res.status(400).json(errorResponse(ErrorCode.VALIDATION_ERROR, 'Active status is required'));
+    return;
+  }
+
+  await Service.updateMany({}, { active });
+
+  // Invalidate cache
+  cacheService.invalidate('public-config');
+
+  res.json(successResponse({ message: `All services ${active ? 'enabled' : 'disabled'}` }));
+});
+
 // ========== SETTINGS CRUD ==========
 
 export const getAllSettings = asyncHandler(async (_req: Request, res: Response) => {

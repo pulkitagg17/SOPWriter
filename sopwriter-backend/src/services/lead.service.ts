@@ -59,18 +59,10 @@ export async function getLeadById(id: string) {
 /**
  * Verify if the public user has the correct token to view this lead
  */
-export async function getPublicLead(id: string, token: string) {
-  const lead = await Lead.findById(id).select('+accessToken').lean().exec();
-  if (!lead || !lead.accessToken) return null;
+// Token is deprecated for now to allow ID-based tracking as per UI design
+export async function getPublicLead(id: string, _token?: string) {
+  const lead = await Lead.findById(id).select('-accessToken').lean().exec();
+  if (!lead) return null;
 
-  // Constant time comparison to prevent timing attacks
-  const isValid = crypto.timingSafeEqual(
-    Buffer.from(lead.accessToken),
-    Buffer.from(token.length === lead.accessToken.length ? token : lead.accessToken)
-  ) && token.length === lead.accessToken.length;
-
-  if (!isValid) return null;
-
-  const { accessToken, ...safeLead } = lead;
-  return safeLead;
+  return lead;
 }

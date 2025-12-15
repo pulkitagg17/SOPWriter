@@ -68,14 +68,18 @@ describe('Leads Controller - Additional Coverage', () => {
 
   describe('GET /api/leads/:leadId', () => {
     it('should return lead details for valid ID', async () => {
+      const accessToken = 'valid_test_token_123';
       const lead = await Lead.create({
         name: 'Test User',
         email: 'test@example.com',
         phone: '1234567890',
         service: 'VISA_TOURIST',
         status: 'NEW', // Use correct enum value
+        accessToken,
       });
-      const response = await request(app).get(`/api/v1/leads/${lead._id}`).expect(200);
+      const response = await request(app)
+        .get(`/api/v1/leads/${lead._id}?token=${accessToken}`)
+        .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data._id).toBe(lead._id.toString());
@@ -84,6 +88,24 @@ describe('Leads Controller - Additional Coverage', () => {
       expect(response.body.data.status).toBe('NEW');
       // Should only return limited fields
       expect(response.body.data.phone).toBeUndefined();
+    });
+
+    it('should return lead details for valid ID without token', async () => {
+      const lead = await Lead.create({
+        name: 'Public User',
+        email: 'public@example.com',
+        phone: '1234567890',
+        service: 'SOP',
+        status: 'NEW',
+      });
+
+      const response = await request(app)
+        .get(`/api/v1/leads/${lead._id}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data._id).toBe(lead._id.toString());
+      expect(response.body.data.name).toBe('Public User');
     });
 
     it('should return 404 for non-existent lead', async () => {
@@ -97,7 +119,9 @@ describe('Leads Controller - Additional Coverage', () => {
     });
 
     it('should return 500 for invalid lead ID format', async () => {
-      const response = await request(app).get('/api/v1/leads/invalid-id-format').expect(500);
+      const response = await request(app)
+        .get('/api/v1/leads/invalid-id-format?token=dummy_token')
+        .expect(500);
 
       expect(response.body.success).toBe(false);
       expect(response.body.code).toBe('INTERNAL_ERROR');
@@ -110,7 +134,7 @@ describe('Leads Controller - Additional Coverage', () => {
       await mongoose.disconnect();
 
       const response = await request(app)
-        .get(`/api/v1/leads/${new mongoose.Types.ObjectId()}`)
+        .get(`/api/v1/leads/${new mongoose.Types.ObjectId()}?token=dummy_token`)
         .expect(500);
 
       expect(response.body.success).toBe(false);

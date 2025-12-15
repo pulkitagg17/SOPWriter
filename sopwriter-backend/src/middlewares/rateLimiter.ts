@@ -47,7 +47,7 @@ export const loginRateLimiter = rateLimit({
 // Rate limiter for forgot-password (prevent OTP spam)
 export const forgotPasswordRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 1, // 1 request per minute to prevent OTP email spam
+  max: 3, // 3 requests per minute to prevent OTP email spam
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, res) => {

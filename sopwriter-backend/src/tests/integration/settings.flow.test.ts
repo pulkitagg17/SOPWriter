@@ -6,7 +6,6 @@ import Service from '../../models/Service.js';
 import GlobalSettings from '../../models/GlobalSettings.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
-// type: SettingType.STRING, // Removed as unused
 import { config_vars } from '../../config/env.js';
 import Admin from '../../models/Admin.js';
 
@@ -169,10 +168,10 @@ describe('Settings Controller - Admin Settings Management', () => {
             category: 'documents',
             price: 5000,
           })
-          .expect(400);
+          .expect(409);
 
         expect(response.body.success).toBe(false);
-        expect(response.body.code).toBe('DUPLICATE_SERVICE');
+        expect(response.body.code).toBe('DUPLICATE_ERROR');
       });
 
       it('should validate category enum', async () => {

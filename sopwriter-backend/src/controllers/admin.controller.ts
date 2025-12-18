@@ -1,22 +1,6 @@
 // src/controllers/admin.controller.ts
 import type { Request, Response } from 'express';
-
-import {
-  loginAdmin,
-  refreshSession,
-  forgotPassword,
-  verifyOtp,
-  resetPassword,
-  revokeRefreshToken,
-} from '../services/auth.service.js';
-
-import {
-  verifyTransaction,
-  findAllTransactions,
-  getTransactionById
-} from '../services/transaction.service.js';
-import { findAllLeads } from '../services/lead.service.js';
-import { mailService } from '../services/mail.service.js';
+import { authService, leadService, mailService, transactionService } from '../di/container.js';
 import { logAudit } from '../services/audit.service.js';
 
 import { AuditAction } from '../constants/index.js';
@@ -27,6 +11,8 @@ import {
 } from '../utils/errors.js';
 
 import { config_vars } from '../config/env.js';
+import { getSafeIp } from '../utils/sanitize.js';
+import { parsePagination } from '../utils/pagination.js';
 
 const isProd = config_vars.nodeEnv === 'production';
 
@@ -70,9 +56,9 @@ function clearAuthCookies(res: Response) {
 
 export const loginHandler = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
-  const ip = req.ip || 'unknown';
+  const ip = getSafeIp(req);
 
-  const { accessToken, refreshToken, admin } = await loginAdmin(email, password);
+  const { accessToken, refreshToken, admin } = await authService.loginAdmin(email, password);
 
   setAuthCookies(res, { accessToken, refreshToken });
 
@@ -102,7 +88,7 @@ export const logoutHandler = asyncHandler(async (req: Request, res: Response) =>
   const refreshToken = req.cookies.refresh_token;
 
   if (refreshToken) {
-    await revokeRefreshToken(refreshToken);
+    await authService.revokeRefreshToken(refreshToken);
   }
 
   clearAuthCookies(res);
@@ -116,7 +102,7 @@ export const refreshHandler = asyncHandler(async (req: Request, res: Response) =
   }
 
   const { accessToken, refreshToken: newRefresh } =
-    await refreshSession(refreshToken);
+    await authService.refreshSession(refreshToken);
 
   setAuthCookies(res, {
     accessToken,
@@ -127,17 +113,17 @@ export const refreshHandler = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const forgotPasswordHandler = asyncHandler(async (req: Request, res: Response) => {
-  await forgotPassword(req.body.email);
+  await authService.forgotPassword(req.body.email, req.requestId);
   res.json({ success: true, message: 'If email exists, OTP sent' });
 });
 
 export const verifyOtpHandler = asyncHandler(async (req: Request, res: Response) => {
-  const { resetToken } = await verifyOtp(req.body.email, req.body.otp);
+  const { resetToken } = await authService.verifyOtp(req.body.email, req.body.otp);
   res.json({ success: true, data: { resetToken } });
 });
 
 export const resetPasswordHandler = asyncHandler(async (req: Request, res: Response) => {
-  await resetPassword(req.body.resetToken, req.body.newPassword);
+  await authService.resetPassword(req.body.resetToken, req.body.newPassword);
   clearAuthCookies(res);
   res.json({ success: true, message: 'Password reset successful' });
 });
@@ -158,27 +144,24 @@ export const meHandler = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const listLeads = asyncHandler(async (req: Request, res: Response) => {
-  const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 10;
-
-  const result = await findAllLeads(req.query.search as string, { page, limit });
+  const { page, limit } = parsePagination(req.query);
+  const result = await leadService.findAllLeads({
+    search: req.query.search as string | undefined,
+    page,
+    limit,
+  });
 
   res.json({
     success: true,
     data: {
       items: result.items,
     },
-    pagination: {
-      page: result.page,
-      limit: result.limit,
-      total: result.total,
-      totalPages: result.totalPages
-    }
+    pagination: result.pagination
   });
 });
 
 export const listTransactions = asyncHandler(async (req: Request, res: Response) => {
-  const transactions = await findAllTransactions({
+  const transactions = await transactionService.findAllTransactions({
     status: req.query.status as string,
     leadId: req.query.leadId as string,
   });
@@ -188,7 +171,7 @@ export const listTransactions = asyncHandler(async (req: Request, res: Response)
 
 export const getTransactionDetail = asyncHandler(
   async (req: Request, res: Response) => {
-    const tx = await getTransactionById(req.params.id);
+    const tx = await transactionService.getTransactionById(req.params.id);
 
     if (!tx) {
       throw new ValidationError('Transaction not found');
@@ -208,11 +191,11 @@ export const verifyTransactionHandler = asyncHandler(async (req: Request, res: R
 
   const admin = (req as any).admin;
 
-  const { lead } = await verifyTransaction(
+  const { lead } = await transactionService.verifyTransaction(
     id,
     { id: admin.sub, email: admin.email },
     action,
-    note
+    note,
   );
 
   if (lead) {

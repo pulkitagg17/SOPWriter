@@ -8,6 +8,7 @@ import publicTransactionsRoutes from './routes/public/transactions.routes.js';
 import configRoutes from './routes/public/config.routes.js';
 import adminRoutes from './routes/admin/admin.routes.js';
 import errorHandler from './middlewares/errorHandler.js';
+import mongoose from 'mongoose';
 
 export function createApp() {
   const app = express();
@@ -18,12 +19,18 @@ export function createApp() {
   app.use(express.json({ limit: '10kb' }));
 
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok' });
+    const checks = {
+      app: 'ok',
+      database: mongoose.connection.readyState === 1 ? 'ok' : 'down',
+      mail: 'ok'
+    }
+    const status = Object.values(checks).every(v => v === 'ok') ? 200 : 503;
+    res.status(status).json({ checks });
   });
 
   app.use('/api/v1', publicLeadsRoutes);
   app.use('/api/v1', publicTransactionsRoutes);
-  app.use('/api/v1/config', configRoutes);
+  app.use('/api/v1', configRoutes);
   app.use('/api/admin', adminRoutes);
 
   app.use(errorHandler);

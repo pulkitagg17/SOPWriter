@@ -1,10 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from '@jest/globals';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import * as leadService from '../../services/lead.service.js';
 import Lead from '../../models/Lead.js';
+import { LeadService } from '../../services/lead.service.js';
+import { MailService } from '../../services/mail.service.js';
 
 let mongod: MongoMemoryServer;
+const mailService = new MailService();
+const leadService = new LeadService(mailService);
 
 beforeAll(async () => {
   mongod = await MongoMemoryServer.create();

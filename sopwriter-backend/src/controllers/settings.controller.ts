@@ -14,21 +14,8 @@ export const getAllServices = asyncHandler(async (_req: Request, res: Response) 
 });
 
 export const createService = asyncHandler(async (req: Request, res: Response) => {
-  try {
-    const service = await settingsService.createService(req.body);
-    res.status(201).json({ success: true, data: service });
-  } catch (err: any) {
-    if (err.code === 11000) {
-      res.status(400).json({ success: false, code: 'DUPLICATE_SERVICE', message: 'Service code already exists' });
-      return;
-    }
-    // Handle Mongoose validation errors
-    if (err.name === 'ValidationError') {
-      res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: err.message });
-      return;
-    }
-    throw err;
-  }
+  const service = await settingsService.createService(req.body);
+  res.status(201).json({ success: true, data: service });
 });
 
 export const updateService = asyncHandler(async (req: Request, res: Response) => {

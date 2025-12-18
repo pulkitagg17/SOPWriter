@@ -1,17 +1,21 @@
-import { Request, Response, NextFunction } from 'express';
+import { AdminRoutePolicy } from '../constants/index.js';
 import { AuthenticationError } from '../utils/errors.js';
-import { AdminPermission, AdminPermissionType } from '../constants/index.js';
+import { Request, Response, NextFunction } from 'express';
 
-export function requirePermission(required: AdminPermissionType) {
+export function requirePermission(route: string) {
     return (req: Request, _res: Response, next: NextFunction) => {
         const admin = (req as any).admin;
-
         if (!admin) throw new AuthenticationError('Admin context missing');
 
-        if (required === AdminPermission.DANGEROUS) {
-            if (!admin.email) {
-                throw new AuthenticationError('Dangerous action blocked');
-            }
+        let policyRoute = route;
+        if (route.includes(':id')) {
+            policyRoute = route.replace(':id', req.params.id);
+        }
+
+        const requiredPermission = AdminRoutePolicy[policyRoute as keyof typeof AdminRoutePolicy];
+        if (!requiredPermission) {
+            next();
+            return;
         }
 
         next();

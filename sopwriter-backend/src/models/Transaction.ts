@@ -102,6 +102,7 @@ const TransactionSchema = new Schema<ITransaction>(
 
 TransactionSchema.index({ leadId: 1, transactionId: 1 });
 TransactionSchema.index({ status: 1, createdAt: -1 });
+TransactionSchema.index({ leadId: 1, status: 1 });
 
 export const Transaction: Model<ITransaction> =
   mongoose.models.Transaction ||

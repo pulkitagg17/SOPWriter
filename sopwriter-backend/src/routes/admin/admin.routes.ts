@@ -19,6 +19,9 @@ import {
   updateService,
   updateSetting
 } from '../../controllers/settings.controller.js';
+import { requirePermission } from '../../middlewares/requirePermission.js';
+import { validateRequest } from '../../middlewares/validateRequest.js';
+import { createServiceSchema } from '../../utils/zodSchemas.js';
 
 const router = express.Router();
 
@@ -32,11 +35,11 @@ router.get('/me', requireAdmin, meHandler);
 router.get('/leads', requireAdmin, listLeads);
 router.get('/transactions', requireAdmin, listTransactions);
 router.get('/transactions/:id', requireAdmin, getTransactionDetail);
-router.post('/transactions/:id/verify', requireAdmin, verifyTransactionHandler);
+router.post('/transactions/:id/verify', requireAdmin, requirePermission('/transactions/:id/verify'), verifyTransactionHandler);
 
 // Services & Settings (assume all admins can manage)
 router.get('/services', requireAdmin, getAllServices);
-router.post('/services', requireAdmin, createService);
+router.post('/services', requireAdmin, validateRequest(createServiceSchema), createService);
 router.put('/services/:id', requireAdmin, updateService);
 router.delete('/services/:id', requireAdmin, deleteService);
 

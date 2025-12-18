@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import { createApp } from '../../app.js';
-import * as mailServiceModule from '../../services/mail.service.js';
+import { mailService } from '../../di/container.js';
 import { logger } from '../../config/logger.js';
 
 let mongod: MongoMemoryServer;
@@ -40,7 +40,7 @@ afterEach(async () => {
 describe('POST /api/leads/:leadId/transactions', () => {
   it('creates a transaction and notifies admin', async () => {
     const spyAdmin = jest
-      .spyOn(mailServiceModule.mailService, 'sendAdminNotification')
+      .spyOn(mailService, 'sendAdminNotification')
       .mockResolvedValue(undefined);
     // create a lead first
     const leadRes = await request(app)

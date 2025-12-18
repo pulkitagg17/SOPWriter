@@ -8,7 +8,7 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ) {
-  if (err instanceof AppError) {
+  if (err instanceof AppError || (err.statusCode && err.code)) {
     logger.warn(
       {
         code: err.code,

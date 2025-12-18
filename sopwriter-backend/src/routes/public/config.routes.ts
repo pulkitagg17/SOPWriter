@@ -3,6 +3,6 @@ import { getPublicConfig } from '../../controllers/config.controller.js';
 
 const router = Router();
 
-router.get('/', getPublicConfig);
+router.get('/config', getPublicConfig);
 
 export default router;

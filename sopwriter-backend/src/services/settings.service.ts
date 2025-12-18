@@ -2,6 +2,8 @@ import Service from '../models/Service.js';
 import GlobalSettings from '../models/GlobalSettings.js';
 import { config_vars } from '../config/env.js';
 import { ServiceCategory } from '../constants/index.js';
+import { DuplicateError } from '../utils/errors.js';
+import { ValidationError } from '../utils/errors.js';
 
 /**
  * Service-related operations
@@ -11,14 +13,25 @@ export async function getAllServices() {
 }
 
 export async function createService(data: any) {
-    return Service.create({
-        code: data.code,
-        name: data.name,
-        category: data.category,
-        price: data.price,
-        description: data.description,
-        active: data.active ?? true,
-    });
+    try {
+        return await Service.create({
+            code: data.code,
+            name: data.name,
+            category: data.category,
+            price: data.price,
+            description: data.description,
+            active: data.active ?? true,
+        });
+    }
+    catch (err: any) {
+        if (err.code == 11000) {
+            throw new DuplicateError('Service', 'code');
+        }
+        if (err.name === 'ValidationError') {
+            throw new ValidationError(err.message);
+        }
+        throw err;
+    }
 }
 
 export async function updateService(id: string, data: any) {

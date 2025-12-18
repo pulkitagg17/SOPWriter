@@ -5,7 +5,7 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { createApp } from '../../app.js';
-import * as mailServiceModule from '../../services/mail.service.js';
+import { mailService } from '../../di/container.js';
 import { logger } from '../../config/logger.js';
 import { config_vars } from '../../config/env.js';
 import Admin from '../../models/Admin.js';
@@ -54,7 +54,7 @@ describe('Admin verify flow', () => {
 
   it('verifies a transaction and notifies user', async () => {
     const mailSpy = jest
-      .spyOn(mailServiceModule.mailService, 'sendUserVerification')
+      .spyOn(mailService, 'sendUserVerification')
       .mockResolvedValue(undefined);
 
     // create lead and tx
@@ -93,7 +93,7 @@ describe('Admin verify flow', () => {
 
   it('rejects a transaction and notifies user', async () => {
     const mailSpy = jest
-      .spyOn(mailServiceModule.mailService, 'sendUserVerification')
+      .spyOn(mailService, 'sendUserVerification')
       .mockResolvedValue(undefined);
 
     const leadRes = await request(app)

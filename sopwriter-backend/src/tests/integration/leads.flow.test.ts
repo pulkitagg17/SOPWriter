@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import { createApp } from '../../app.js';
-import * as mailServiceModule from '../../services/mail.service.js';
+import { mailService } from '../../di/container.js';
 import { logger } from '../../config/logger.js';
 
 let mongod: MongoMemoryServer;
@@ -40,7 +40,7 @@ afterEach(async () => {
 describe('POST /api/leads flow', () => {
   it('creates a lead and sends confirmation email', async () => {
     const spy = jest
-      .spyOn(mailServiceModule.mailService, 'sendLeadConfirmation')
+      .spyOn(mailService, 'sendLeadConfirmation')
       .mockResolvedValue(undefined);
     const payload = { name: 'Alice', email: 'alice@example.com', service: 'VISA_TOURIST' };
     const res = await request(app).post('/api/v1/leads').send(payload).expect(201);
@@ -52,13 +52,13 @@ describe('POST /api/leads flow', () => {
 
   it('dedupes identical lead within window and returns 200', async () => {
     const spy = jest
-      .spyOn(mailServiceModule.mailService, 'sendLeadConfirmation')
+      .spyOn(mailService, 'sendLeadConfirmation')
       .mockResolvedValue(undefined);
     const payload = { name: 'Bob', email: 'bob@example.com', service: 'VISA_TOURIST' };
     const r1 = await request(app).post('/api/v1/leads').send(payload).expect(201);
     const r2 = await request(app).post('/api/v1/leads').send(payload).expect(200);
     expect(r2.body.data.leadId).toEqual(r1.body.data.leadId);
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledTimes(1);
 
     spy.mockRestore();
   });

@@ -84,6 +84,14 @@ const LeadSchema = new Schema<ILead>(
 );
 
 LeadSchema.index({ createdAt: -1 });
+LeadSchema.index(
+  { name: 1, email: 1, service: 1, createdAt: -1 },
+  { name: 'dedupe_index' }
+);
+LeadSchema.index(
+  { name: 'text', email: 'text', service: 'text' },
+  { name: 'lead_search_text' }
+);
 
 export const Lead: Model<ILead> =
   mongoose.models.Lead || mongoose.model<ILead>('Lead', LeadSchema);

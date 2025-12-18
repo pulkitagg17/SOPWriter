@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { sanitizeText, sanitizeEmail, sanitizeHtml } from './sanitize.js';
+import { sanitizeText, sanitizeEmail, sanitizeHtml, normalizeEmail } from './sanitize.js';
 import { TransactionMethod } from '../constants/index.js';
 
 export const createLeadSchema = z.object({
   name: z.string().min(2).max(100),
-  email: z.string().email(),
+  email: z.string().email().transform(normalizeEmail),
   phone: z.string().optional(),
   service: z.string().min(1).max(100),
   notes: z.string().max(2000).optional(),

@@ -1,28 +1,11 @@
 import type { Request, Response } from 'express';
-import { createLead, getLeadById } from '../services/lead.service.js';
+import { leadService } from '../di/container.js';
 import { NotFoundError } from '../utils/errors.js';
-
-import { mailService } from '../services/mail.service.js';
-import { config_vars } from '../config/env.js';
 
 export const createLeadHandler = async (req: Request, res: Response) => {
   const payload = req.body;
 
-  const { lead, isDuplicate } = await createLead(payload);
-
-  if (lead) {
-    try {
-      await mailService.sendLeadConfirmation(lead.email, {
-        name: lead.name,
-        leadId: lead._id.toString(),
-        service: lead.service,
-        appUrl: config_vars.app.baseUrl,
-      });
-    } catch (error) {
-      // Log error but don't fail the request
-      // logger.error({ err: error }, 'Failed to send lead confirmation email');
-    }
-  }
+  const { lead, isDuplicate } = await leadService.createLeadWithConfirmation(payload, req.requestId);
 
   res.status(isDuplicate ? 200 : 201).json({
     success: true,
@@ -31,12 +14,12 @@ export const createLeadHandler = async (req: Request, res: Response) => {
       isDuplicate,
     }
   });
-}
+};
 
 export const getLeadPublic = async (req: Request, res: Response) => {
   const { leadId } = req.params;
 
-  const lead = await getLeadById(leadId);
+  const lead = await leadService.getLeadById(leadId);
   if (!lead) {
     throw new NotFoundError('Lead', leadId);
   }

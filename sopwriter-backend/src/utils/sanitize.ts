@@ -31,3 +31,27 @@ export function sanitizeEmail(input: string): string {
 export function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+export const normalizeEmail = (email: string): string => {
+  const [local, domain] = email.toLowerCase().split('@');
+  if (!local || !domain) return email;
+
+  // Remove +alias and dots (Gmail-style)
+  const cleanLocal = local.split('+')[0].replace(/\./g, '');
+  return `${cleanLocal}@${domain}`;
+};
+
+export function getSafeIp(req: any): string {
+  // In production, trust only your reverse proxy
+  if (process.env.NODE_ENV === 'production') {
+    // Assumes you set 'trust proxy' in Express or use a trusted header
+    return req.ip || req.socket.remoteAddress || 'unknown';
+  }
+  // In dev, use X-Forwarded-For for local testing
+  return (
+    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+    req.ip ||
+    req.socket.remoteAddress ||
+    'unknown'
+  );
+}

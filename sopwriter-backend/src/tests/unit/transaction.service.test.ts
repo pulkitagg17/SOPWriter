@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from '@jest/globals';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import * as transactionService from '../../services/transaction.service.js';
 import Lead from '../../models/Lead.js';
 import Transaction from '../../models/Transaction.js';
+import { TransactionService } from '../../services/transaction.service.js';
 
 let mongod: MongoMemoryServer;
+const transactionService = new TransactionService();
 
 beforeAll(async () => {
   mongod = await MongoMemoryServer.create();

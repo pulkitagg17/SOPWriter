@@ -2,12 +2,12 @@ import { jest, describe, it, expect, beforeAll, afterAll, afterEach } from '@jes
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
-import { createApp } from '../../app.js';
-import * as mailModule from '../../services/mail.service.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { config_vars } from '../../config/env.js';
 import Admin from '../../models/Admin.js';
+import { mailService } from '../../di/container.js';
+import { createApp } from '../../app.js';
 
 let mongod: MongoMemoryServer;
 let app: any;
@@ -15,6 +15,11 @@ let app: any;
 beforeAll(async () => {
   mongod = await MongoMemoryServer.create();
   await mongoose.connect(mongod.getUri());
+
+  jest.spyOn(mailService, 'sendLeadConfirmation').mockResolvedValue(undefined);
+  jest.spyOn(mailService, 'sendAdminNotification').mockResolvedValue(undefined);
+  jest.spyOn(mailService, 'sendUserVerification').mockResolvedValue(undefined);
+
   app = createApp();
 });
 
@@ -30,29 +35,18 @@ afterEach(async () => {
 
 describe('full integration flow', () => {
   it('lead -> declare -> admin verify', async () => {
-    // Spying
-    const leadSpy = jest
-      .spyOn(mailModule.mailService, 'sendLeadConfirmation')
-      .mockResolvedValue(undefined);
-    const adminSpy = jest
-      .spyOn(mailModule.mailService, 'sendAdminNotification')
-      .mockResolvedValue(undefined);
-    const userVerifySpy = jest
-      .spyOn(mailModule.mailService, 'sendUserVerification')
-      .mockResolvedValue(undefined);
 
     const leadRes = await request(app)
       .post('/api/v1/leads')
       .send({ name: 'Full', email: 'full@example.com', service: 'VISA_TOURIST' })
       .expect(201);
     const leadId = leadRes.body.data.leadId;
-    expect(leadSpy).toHaveBeenCalled();
 
     const txRes = await request(app)
       .post(`/api/v1/leads/${leadId}/transactions`)
       .send({ transactionId: 'TX-F1' })
       .expect(201);
-    expect(adminSpy).toHaveBeenCalled();
+
     const txId = txRes.body.data.transactionId;
 
     // Create Admin
@@ -77,11 +71,11 @@ describe('full integration flow', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ action: 'VERIFY', note: 'ok' })
       .expect(200);
-    expect(verifyRes.body.data.status).toBe('VERIFIED');
-    expect(userVerifySpy).toHaveBeenCalled();
 
-    leadSpy.mockRestore();
-    adminSpy.mockRestore();
-    userVerifySpy.mockRestore();
+    expect(verifyRes.body.data.status).toBe('VERIFIED');
+
+    expect(mailService.sendLeadConfirmation).toHaveBeenCalled();
+    expect(mailService.sendAdminNotification).toHaveBeenCalled();
+    expect(mailService.sendUserVerification).toHaveBeenCalled();
   });
 });

@@ -85,7 +85,7 @@ export const loginHandler = asyncHandler(async (req: Request, res: Response) => 
 });
 
 export const logoutHandler = asyncHandler(async (req: Request, res: Response) => {
-  const refreshToken = req.cookies.refresh_token;
+  const refreshToken = req.cookies?.refresh_token;
 
   if (refreshToken) {
     await authService.revokeRefreshToken(refreshToken);
@@ -96,7 +96,7 @@ export const logoutHandler = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const refreshHandler = asyncHandler(async (req: Request, res: Response) => {
-  const refreshToken = req.cookies.refresh_token;
+  const refreshToken = req.cookies?.refresh_token;
   if (!refreshToken) {
     throw new AuthenticationError('Refresh token missing');
   }

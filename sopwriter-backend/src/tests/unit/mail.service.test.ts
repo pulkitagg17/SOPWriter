@@ -1,35 +1,65 @@
 import { jest, describe, it, expect } from '@jest/globals';
 
-const sendMailMock = jest.fn() as any;
-sendMailMock.mockResolvedValue({ messageId: 'abc' });
+// 1. Define the mock function
+const sendMailMock = jest.fn();
+// Default behavior: success
+(sendMailMock as any).mockResolvedValue({ messageId: 'mock-id' });
 
-// Hoist mock factory
+// 2. Mock 'nodemailer' before importing the service
 jest.unstable_mockModule('nodemailer', () => ({
   default: {
-    createTransport: jest.fn().mockReturnValue({ sendMail: sendMailMock }),
+    createTransport: jest.fn().mockReturnValue({
+      sendMail: sendMailMock,
+    }),
   },
 }));
 
-// Dynamic import needed after unstable_mockModule for it to take effect in ESM
-const { MailService } = await import('../../services/mail.service.js');
+jest.unstable_mockModule('../../config/env.js', () => ({
+  config_vars: {
+    mail: { provider: 'smtp' },
+    email: {
+      from: 'no-reply@test.com',
+      adminNotify: 'admin@test.com',
+      smtp: {
+        host: 'localhost',
+        port: 587,
+        secure: false,
+        user: 'user',
+        pass: 'pass',
+      },
+    },
+  },
+}));
 
-describe('MailService (SMTP mock)', () => {
-  it('sends mail via SMTP and retries on failure', async () => {
-    const svc = new MailService({
-      from: 'noreply@test',
-      adminEmail: 'admin@test',
-      provider: 'smtp',
-      smtpConfig: { host: 'smtp.test' } as any,
-      retryAttempts: 2,
+// 3. Import the service (after mocking)
+const { mailService } = await import('../../services/mail.service.js');
+
+describe('MailService (Functional)', () => {
+  it('sendOtp calls transporter.sendMail', async () => {
+    await mailService.sendOtp('test@example.com', '123456');
+
+    expect(sendMailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'test@example.com',
+        subject: expect.stringContaining('OTP'),
+        text: expect.stringContaining('123456'),
+      })
+    );
+  });
+
+  it('sendLeadConfirmation calls transporter.sendMail', async () => {
+    await mailService.sendLeadConfirmation('lead@example.com', {
+      name: 'John Doe',
+      leadId: '123',
+      service: 'SOP',
+      appUrl: 'http://localhost:3000'
     });
 
-    // normal send
-    await expect(svc.send('to@test', 'sub', 'body')).resolves.toEqual({ ok: true });
-
-    // simulate transient failure first then success
-    sendMailMock.mockRejectedValueOnce(new Error('ENETUNREACH'));
-    sendMailMock.mockResolvedValueOnce({ messageId: 'ok' });
-    const res = await svc.send('to@test', 'sub2', 'body2');
-    expect(res).toEqual({ ok: true });
+    expect(sendMailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'lead@example.com',
+        subject: expect.stringContaining('Request Received'),
+      })
+    );
   });
 });

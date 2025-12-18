@@ -71,7 +71,7 @@ describe('Admin transactions endpoints', () => {
     await request(app)
       .post(`/api/v1/leads/${leadId}/transactions`)
       .send({ transactionId: 'TX-1' })
-      .expect(200);
+      .expect(201);
 
     const res = await request(app)
       .get('/api/admin/transactions')
@@ -94,7 +94,7 @@ describe('Admin transactions endpoints', () => {
     const txRes = await request(app)
       .post(`/api/v1/leads/${leadId}/transactions`)
       .send({ transactionId: 'TX-2' })
-      .expect(200);
+      .expect(201);
     const txId = txRes.body.data.transactionId;
     const res = await request(app)
       .get(`/api/admin/transactions/${txId}`)

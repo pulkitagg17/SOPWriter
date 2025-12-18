@@ -4,6 +4,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import { createApp } from '../../app.js';
 import * as mailServiceModule from '../../services/mail.service.js';
+import { logger } from '../../config/logger.js';
 
 let mongod: MongoMemoryServer;
 let app: any;
@@ -16,7 +17,7 @@ beforeAll(async () => {
     process.env.APP_BASE_URL = 'http://test.app';
     app = createApp();
   } catch (error) {
-    console.error('Failed to start MongoMemoryServer', error);
+    logger.error({ err: error }, 'Failed to start MongoMemoryServer');
     throw error;
   }
 });
@@ -39,8 +40,8 @@ afterEach(async () => {
 describe('POST /api/leads flow', () => {
   it('creates a lead and sends confirmation email', async () => {
     const spy = jest
-      .spyOn(mailServiceModule.MailService.prototype, 'sendLeadConfirmation')
-      .mockResolvedValue({ ok: true } as any);
+      .spyOn(mailServiceModule.mailService, 'sendLeadConfirmation')
+      .mockResolvedValue(undefined);
     const payload = { name: 'Alice', email: 'alice@example.com', service: 'VISA_TOURIST' };
     const res = await request(app).post('/api/v1/leads').send(payload).expect(201);
     expect(res.body.success).toBe(true);
@@ -51,8 +52,8 @@ describe('POST /api/leads flow', () => {
 
   it('dedupes identical lead within window and returns 200', async () => {
     const spy = jest
-      .spyOn(mailServiceModule.MailService.prototype, 'sendLeadConfirmation')
-      .mockResolvedValue({ ok: true } as any);
+      .spyOn(mailServiceModule.mailService, 'sendLeadConfirmation')
+      .mockResolvedValue(undefined);
     const payload = { name: 'Bob', email: 'bob@example.com', service: 'VISA_TOURIST' };
     const r1 = await request(app).post('/api/v1/leads').send(payload).expect(201);
     const r2 = await request(app).post('/api/v1/leads').send(payload).expect(200);

@@ -1,16 +1,14 @@
 import mongoose from 'mongoose';
 import { config_vars } from './env.js';
 import { logger } from './logger.js';
-import { CONNECTION_POOL, TIMEOUT } from '../constants/index.js';
 
 export const connectDatabase = async (): Promise<void> => {
   try {
     await mongoose.connect(config_vars.mongoUri, {
-      maxPoolSize: CONNECTION_POOL.MAX_SIZE,
-      minPoolSize: CONNECTION_POOL.MIN_SIZE,
-      socketTimeoutMS: TIMEOUT.SOCKET_MS,
-      serverSelectionTimeoutMS: TIMEOUT.SERVER_SELECTION_MS,
-      family: 4, // Use IPv4, skip IPv6
+      maxPoolSize: 10,
+      socketTimeoutMS: 30000,
+      serverSelectionTimeoutMS: 5000,
+      family: 4,
     });
 
     logger.info(

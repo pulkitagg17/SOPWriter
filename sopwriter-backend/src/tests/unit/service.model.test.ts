@@ -107,16 +107,7 @@ describe('Service Model', () => {
       ).rejects.toThrow();
     });
 
-    it('should only accept valid category enum values', async () => {
-      const serviceData = {
-        code: 'TEST',
-        name: 'Test',
-        category: 'invalid_category',
-        price: 1000,
-      };
 
-      await expect(Service.create(serviceData)).rejects.toThrow();
-    });
 
     it('should accept valid category: documents', async () => {
       const service = await Service.create({

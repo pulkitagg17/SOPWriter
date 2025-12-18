@@ -1,68 +1,92 @@
-import Lead, { ILead } from '../models/Lead.js';
+import Lead from '../models/Lead.js';
 import { CreateLeadDTO } from '../utils/zodSchemas.js';
-import { DEDUPE, HistoryAction } from '../constants/index.js';
-import crypto from 'crypto';
+import { HistoryAction } from '../constants/index.js';
+import { escapeRegex } from '../utils/sanitize.js';
 
-export async function createLead(payload: CreateLeadDTO): Promise<ILead> {
-  // Dedupe: same name + email + service within window
-  const since = new Date(Date.now() - DEDUPE.WINDOW_MS);
+const DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export interface CreateLeadResult {
+  lead: typeof Lead.prototype;
+  isDuplicate: boolean;
+}
+
+export async function createLead(payload: CreateLeadDTO): Promise<CreateLeadResult> {
+  const since = new Date(Date.now() - DEDUPE_WINDOW_MS);
+
   const existing = await Lead.findOne({
     name: payload.name,
     email: payload.email,
     service: payload.service,
     createdAt: { $gte: since },
-  }).exec();
-
-  if (existing) {
-    // append history about duplicate attempt
-    existing.history.push({
-      action: HistoryAction.DUPLICATE_ATTEMPT,
-      note: 'Duplicate lead within 24h',
-      by: 'public',
-    });
-    await existing.save();
-    // Return existing lead but we won't return the token for security (unless we regenerate it, but let's assume dedupe means they lost it)
-    // Actually, for UX, if they are retrying, they might need the link again.
-    // Let's ensure the existing lead has a token, if not (legacy), generate one.
-    if (!existing.accessToken) {
-      const token = crypto.randomBytes(32).toString('hex');
-      existing.accessToken = token;
-      await existing.save();
-      // Temporarily attach token to result for the controller to send back
-      (existing as any)._tempAccessToken = token;
-    } else {
-      // If it exists, we might not want to expose it again easily to prevent enumeration,
-      // but since this requires matching name+email+service+time, it's somewhat authenticated.
-      (existing as any)._tempAccessToken = existing.accessToken;
-    }
-    return existing;
-  }
-
-  const accessToken = crypto.randomBytes(32).toString('hex');
-  const lead = new Lead({
-    ...payload,
-    accessToken,
-    history: [{ action: HistoryAction.CREATED, by: 'public' }]
   });
 
-  await lead.save();
-  // Attach token for controller
-  (lead as any)._tempAccessToken = accessToken;
+  if (existing) {
+    existing.history.push({
+      action: HistoryAction.DUPLICATE_ATTEMPT,
+      by: 'public',
+      at: new Date(),
+    });
 
-  return lead;
+    await existing.save();
+
+    return { lead: existing, isDuplicate: true };
+  }
+
+  const lead = await Lead.create({
+    ...payload,
+    history: [
+      {
+        action: HistoryAction.CREATED,
+        by: 'public',
+        at: new Date(),
+      }
+    ],
+  });
+
+  return { lead, isDuplicate: false };
 }
+
 
 export async function getLeadById(id: string) {
-  return Lead.findById(id).lean().exec();
+  return Lead.findById(id).lean();
 }
 
-/**
- * Verify if the public user has the correct token to view this lead
- */
-// Token is deprecated for now to allow ID-based tracking as per UI design
-export async function getPublicLead(id: string, _token?: string) {
-  const lead = await Lead.findById(id).select('-accessToken').lean().exec();
-  if (!lead) return null;
+export async function getPublicLead(id: string) {
+  return Lead.findById(id).lean();
+}
 
-  return lead;
+interface PaginationOptions {
+  page: number;
+  limit: number;
+}
+
+export async function findAllLeads(search?: string, options: PaginationOptions = { page: 1, limit: 100 }) {
+  const filter: Record<string, any> = {};
+
+  if (search) {
+    const q = escapeRegex(search);
+    filter.$or = [
+      { name: new RegExp(q, 'i') },
+      { email: new RegExp(q, 'i') },
+      { service: new RegExp(q, 'i') },
+    ];
+  }
+
+  const { page, limit } = options;
+  const skip = (page - 1) * limit;
+
+  const total = await Lead.countDocuments(filter);
+  const items = await Lead.find(filter)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
+
+  return {
+    items,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit)
+  };
 }

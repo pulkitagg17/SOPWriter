@@ -1,33 +1,44 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema, Model } from 'mongoose';
 
-export interface IAuditLog extends Document {
-    adminId: mongoose.Types.ObjectId; // Potentially null if system action or failed login
+export interface IAuditLog {
+    actorId?: string;
+    actorEmail?: string;
     action: string;
     targetId?: string;
-    details?: any;
+    status: 'SUCCESS' | 'FAILURE';
     ip?: string;
     userAgent?: string;
-    status: 'SUCCESS' | 'FAILURE';
+    details?: Record<string, any>;
     createdAt: Date;
 }
 
 const AuditLogSchema = new Schema<IAuditLog>(
     {
-        adminId: { type: Schema.Types.ObjectId, ref: 'Admin' },
+        actorId: { type: String, index: true },
+        actorEmail: { type: String, index: true },
         action: { type: String, required: true, index: true },
-        targetId: { type: String },
-        details: { type: Schema.Types.Mixed }, // Store as flexible object
+        targetId: { type: String, index: true },
+        status: {
+            type: String,
+            enum: ['SUCCESS', 'FAILURE'],
+            required: true,
+            index: true,
+        },
         ip: { type: String },
         userAgent: { type: String },
-        status: { type: String, enum: ['SUCCESS', 'FAILURE'], default: 'SUCCESS' },
+        details: { type: Schema.Types.Mixed },
     },
-    { timestamps: { createdAt: true, updatedAt: false } }
+    {
+        timestamps: true,
+    }
 );
 
-// TTL index to auto-delete logs after 90 days
-AuditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
+// Compound indexes for investigations
+AuditLogSchema.index({ action: 1, createdAt: -1 });
+AuditLogSchema.index({ actorId: 1, createdAt: -1 });
 
 export const AuditLog: Model<IAuditLog> =
-    mongoose.models.AuditLog || mongoose.model<IAuditLog>('AuditLog', AuditLogSchema);
+    mongoose.models.AuditLog ||
+    mongoose.model<IAuditLog>('AuditLog', AuditLogSchema);
 
 export default AuditLog;

@@ -1,130 +1,100 @@
 import type { Request, Response } from 'express';
-import Service from '../models/Service.js';
-import GlobalSettings from '../models/GlobalSettings.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { successResponse, errorResponse } from '../utils/responses.js';
-import { ErrorCode } from '../constants/index.js';
-import { cacheService } from '../services/cache.service.js';
+import * as settingsService from '../services/settings.service.js';
 
-// ========== SERVICES CRUD ==========
+/**
+ * =========================
+ * SERVICES (ADMIN)
+ * =========================
+ */
 
 export const getAllServices = asyncHandler(async (_req: Request, res: Response) => {
-  const services = await Service.find({}).sort({ category: 1, name: 1 }).lean();
-  res.json(successResponse(services));
+  const services = await settingsService.getAllServices();
+  res.json({ success: true, data: services });
 });
 
 export const createService = asyncHandler(async (req: Request, res: Response) => {
-  const { code, name, category, price, description, active } = req.body;
-
-  const service = new Service({
-    code,
-    name,
-    category,
-    price,
-    description,
-    active: active !== undefined ? active : true,
-  });
-
   try {
-    await service.save();
-    // Invalidate cache when service is created
-    cacheService.invalidate('public-config');
-    res.status(201).json(successResponse(service));
-  } catch (error: any) {
-    if (error.code === 11000) {
-      res
-        .status(400)
-        .json(errorResponse(ErrorCode.DUPLICATE_SERVICE, 'Service code already exists'));
+    const service = await settingsService.createService(req.body);
+    res.status(201).json({ success: true, data: service });
+  } catch (err: any) {
+    if (err.code === 11000) {
+      res.status(400).json({ success: false, code: 'DUPLICATE_SERVICE', message: 'Service code already exists' });
       return;
     }
-    throw error;
+    // Handle Mongoose validation errors
+    if (err.name === 'ValidationError') {
+      res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: err.message });
+      return;
+    }
+    throw err;
   }
 });
 
 export const updateService = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { name, category, price, description, active } = req.body;
-
-  const service = await Service.findByIdAndUpdate(
-    id,
-    { name, category, price, description, active },
-    { new: true, runValidators: true }
-  );
+  const service = await settingsService.updateService(req.params.id, req.body);
 
   if (!service) {
-    res.status(404).json(errorResponse(ErrorCode.SERVICE_NOT_FOUND, 'Service not found'));
+    res.status(404).json({ success: false, code: 'SERVICE_NOT_FOUND', message: 'Service not found' });
     return;
   }
 
-  // Invalidate cache when service is updated
-  cacheService.invalidate('public-config');
-  res.json(successResponse(service));
+  res.json({ success: true, data: service });
 });
 
 export const deleteService = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
-
-  const service = await Service.findByIdAndDelete(id);
+  const service = await settingsService.deleteService(req.params.id);
 
   if (!service) {
-    res.status(404).json(errorResponse(ErrorCode.SERVICE_NOT_FOUND, 'Service not found'));
+    res.status(404).json({ success: false, code: 'SERVICE_NOT_FOUND', message: 'Service not found' });
     return;
   }
 
-  // Invalidate cache when service is deleted
-  cacheService.invalidate('public-config');
-  res.json(successResponse({ message: 'Service deleted' }));
+  res.json({ success: true, message: 'Service deleted' });
 });
 
 export const bulkUpdateServices = asyncHandler(async (req: Request, res: Response) => {
   const { active } = req.body;
 
   if (typeof active !== 'boolean') {
-    res.status(400).json(errorResponse(ErrorCode.VALIDATION_ERROR, 'Active status is required'));
+    res.status(400).json({ success: false, message: 'Active status is required' });
     return;
   }
 
-  await Service.updateMany({}, { active });
+  await settingsService.bulkUpdateServices(active);
 
-  // Invalidate cache
-  cacheService.invalidate('public-config');
-
-  res.json(successResponse({ message: `All services ${active ? 'enabled' : 'disabled'}` }));
+  res.json({
+    success: true,
+    message: `All services ${active ? 'enabled' : 'disabled'}`,
+  });
 });
 
-// ========== SETTINGS CRUD ==========
+/**
+ * =========================
+ * GLOBAL SETTINGS (ADMIN)
+ * =========================
+ */
 
 export const getAllSettings = asyncHandler(async (_req: Request, res: Response) => {
-  const settings = await GlobalSettings.find({}).lean();
-  res.json(successResponse(settings));
+  const settings = await settingsService.getAllSettings();
+  res.json({ success: true, data: settings });
 });
 
 export const updateSetting = asyncHandler(async (req: Request, res: Response) => {
   const { key } = req.params;
   const { value, description } = req.body;
 
-  const setting = await GlobalSettings.findOneAndUpdate(
-    { key },
-    { value, description },
-    { new: true, upsert: true, runValidators: true }
-  );
-
-  // Invalidate cache when setting is updated
-  cacheService.invalidate('public-config');
-  res.json(successResponse(setting));
+  const setting = await settingsService.updateSetting(key, value, description);
+  res.json({ success: true, data: setting });
 });
 
 export const deleteSetting = asyncHandler(async (req: Request, res: Response) => {
-  const { key } = req.params;
-
-  const setting = await GlobalSettings.findOneAndDelete({ key });
+  const setting = await settingsService.deleteSetting(req.params.key);
 
   if (!setting) {
-    res.status(404).json(errorResponse(ErrorCode.SETTING_NOT_FOUND, 'Setting not found'));
+    res.status(404).json({ success: false, code: 'SETTING_NOT_FOUND', message: 'Setting not found' });
     return;
   }
 
-  // Invalidate cache when setting is deleted
-  cacheService.invalidate('public-config');
-  res.json(successResponse({ message: 'Setting deleted' }));
+  res.json({ success: true, message: 'Setting deleted' });
 });

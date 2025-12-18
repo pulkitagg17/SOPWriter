@@ -4,8 +4,8 @@ import mongoose from 'mongoose';
 import { createApp } from '../../app.js';
 import Service from '../../models/Service.js';
 import GlobalSettings from '../../models/GlobalSettings.js';
-import { SettingType } from '../../constants/index.js';
-import { cacheService } from '../../services/cache.service.js';
+// type: SettingType.STRING, // Removed as unused
+
 
 describe('Config Controller - /api/config', () => {
   let mongoServer: MongoMemoryServer;
@@ -27,7 +27,7 @@ describe('Config Controller - /api/config', () => {
     await Service.deleteMany({});
     await GlobalSettings.deleteMany({});
     // Clear cache before each test
-    cacheService.clearAll();
+
   });
 
   describe('GET /api/config', () => {
@@ -88,11 +88,11 @@ describe('Config Controller - /api/config', () => {
     it('should return contact and payment settings', async () => {
       // Create test settings
       await GlobalSettings.create([
-        { key: 'contact_phone', value: '+91 98765 43210', type: SettingType.STRING },
-        { key: 'contact_whatsapp', value: '919871160227', type: SettingType.STRING },
-        { key: 'contact_email', value: 'info@example.com', type: SettingType.STRING },
-        { key: 'support_email', value: 'support@example.com', type: SettingType.STRING },
-        { key: 'payment_upi_id', value: '919871160227@upi', type: SettingType.STRING },
+        { key: 'contact_phone', value: '+91 98765 43210' },
+        { key: 'contact_whatsapp', value: '919871160227' },
+        { key: 'contact_email', value: 'info@example.com' },
+        { key: 'support_email', value: 'support@example.com' },
+        { key: 'payment_upi_id', value: '919871160227@upi' },
       ]);
 
       const response = await request(app).get('/api/v1/config').expect(200);

@@ -1,18 +1,23 @@
 import { Request, Response, NextFunction } from 'express';
-import { ZodSchema } from 'zod';
-import { ErrorCode } from '../constants/index.js';
-import { errorResponse } from '../utils/responses.js';
+import type { ZodType } from 'zod';
+import { ValidationError } from '../utils/errors.js';
 
-export function validateRequest(schema: ZodSchema<any>) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const parse = schema.safeParse(req.body);
-    if (!parse.success) {
-      return res.status(400).json({
-        ...errorResponse(ErrorCode.VALIDATION_ERROR, 'Invalid request', parse.error.issues),
-      });
-    }
-    // attach validated data
-    (req as any).validatedBody = parse.data;
-    return next();
-  };
-}
+type Source = 'body' | 'params' | 'query';
+
+export const validateRequest =
+  <T>(schema: ZodType<T>, source: Source = 'body') =>
+    (req: Request, _res: Response, next: NextFunction) => {
+      const result = schema.safeParse(req[source]);
+
+      if (!result.success) {
+        return next(
+          new ValidationError(
+            'Invalid request data',
+            result.error.format()
+          )
+        );
+      }
+
+      req.validatedBody = result.data;
+      next();
+    };

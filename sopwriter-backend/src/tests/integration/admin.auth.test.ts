@@ -60,7 +60,7 @@ describe('Admin Controller - Authentication & Leads', () => {
         .expect(200);
 
       expect(response.body.success).toBeDefined();
-      expect(response.body.data.message).toBe('Logged in successfully');
+      expect(response.body.message).toBe('Logged in successfully');
       // Cookie check
       const cookies = response.headers['set-cookie'];
       expect(cookies).toBeDefined();

@@ -1,10 +1,10 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
-import { ServiceCategory, ServiceCategoryType } from '../constants/index.js';
+import mongoose, { Schema, Model } from 'mongoose';
+import { ServiceCategory } from '../constants/index.js';
 
-export interface IService extends Document {
+export interface IService {
   code: string;
   name: string;
-  category: ServiceCategoryType;
+  category: string; // free-form, frontend-defined
   price: number;
   description?: string;
   active: boolean;
@@ -14,21 +14,42 @@ export interface IService extends Document {
 
 const ServiceSchema = new Schema<IService>(
   {
-    code: { type: String, required: true, unique: true, index: true, trim: true },
-    name: { type: String, required: true, trim: true },
+    code: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+      trim: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     category: {
       type: String,
       required: true,
-      enum: Object.values(ServiceCategory),
       index: true,
+      trim: true,
+      enum: Object.values(ServiceCategory),
     },
-    price: { type: Number, required: true, min: 0 },
-    description: { type: String },
-    active: { type: Boolean, default: true },
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    description: {
+      type: String,
+    },
+    active: {
+      type: Boolean,
+      default: true,
+    },
   },
   { timestamps: true }
 );
 
 export const Service: Model<IService> =
   mongoose.models.Service || mongoose.model<IService>('Service', ServiceSchema);
+
 export default Service;

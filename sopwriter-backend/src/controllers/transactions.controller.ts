@@ -1,35 +1,33 @@
 import type { Request, Response } from 'express';
 import * as transactionService from '../services/transaction.service.js';
-import { MailService } from '../services/mail.service.js';
+import { mailService } from '../services/mail.service.js';
 import { config_vars } from '../config/env.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { successResponse } from '../utils/responses.js';
-import { getClientIp } from '../utils/requestHelpers.js';
-
-const mail = MailService.getInstance();
+import type { CreateTransactionDTO } from '../utils/zodSchemas.js';
 
 export const declareTransactionHandler = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const payload = (req as any).validatedBody;
+    const payload = req.validatedBody as CreateTransactionDTO;
     const { leadId } = req.params;
-    const ip = getClientIp(req);
-    const tx = await transactionService.declareTransaction(leadId, payload, ip);
+    const ip = req.ip;
 
-    // notify admin (await so tests can spy)
-    const lead = (tx as any).leadId || tx.leadId;
-    const leadName = typeof lead === 'object' ? lead.name || '' : '';
-    const leadEmail = typeof lead === 'object' ? lead.email || '' : '';
+    const tx = await transactionService.declareTransaction(
+      leadId,
+      payload,
+      ip
+    );
 
-    mail
-      .sendAdminNotification({
-        transactionId: tx.transactionId,
-        leadId: tx.leadId.toString(),
-        leadName,
-        leadEmail,
-        appUrl: config_vars.app.baseUrl,
-      })
-      .catch(() => {}); // Email notification failure is non-critical
+    mailService.sendAdminNotification({
+      transactionId: tx.transactionId,
+      leadId: tx.leadId.toString(),
+      appUrl: config_vars.app.baseUrl,
+    }).catch(() => { });
 
-    res.json(successResponse({ transactionId: tx._id }));
+    res.status(201).json({
+      success: true,
+      data: {
+        transactionId: tx._id,
+      }
+    });
   }
 );

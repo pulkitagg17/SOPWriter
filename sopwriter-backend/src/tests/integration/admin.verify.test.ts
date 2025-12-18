@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { createApp } from '../../app.js';
 import * as mailServiceModule from '../../services/mail.service.js';
+import { logger } from '../../config/logger.js';
 import { config_vars } from '../../config/env.js';
 import Admin from '../../models/Admin.js';
 
@@ -19,7 +20,7 @@ beforeAll(async () => {
     await mongoose.connect(uri);
     app = createApp();
   } catch (error) {
-    console.error('Failed to start MongoMemoryServer', error);
+    logger.error({ err: error }, 'Failed to start MongoMemoryServer');
     throw error;
   }
 });
@@ -53,8 +54,8 @@ describe('Admin verify flow', () => {
 
   it('verifies a transaction and notifies user', async () => {
     const mailSpy = jest
-      .spyOn(mailServiceModule.MailService.prototype, 'sendUserVerification')
-      .mockResolvedValue({ ok: true } as any);
+      .spyOn(mailServiceModule.mailService, 'sendUserVerification')
+      .mockResolvedValue(undefined);
 
     // create lead and tx
     const leadRes = await request(app)
@@ -65,7 +66,7 @@ describe('Admin verify flow', () => {
     const txRes = await request(app)
       .post(`/api/v1/leads/${leadId}/transactions`)
       .send({ transactionId: 'TX-V1' })
-      .expect(200);
+      .expect(201);
     const txId = txRes.body.data.transactionId;
 
     // verify as admin
@@ -92,8 +93,8 @@ describe('Admin verify flow', () => {
 
   it('rejects a transaction and notifies user', async () => {
     const mailSpy = jest
-      .spyOn(mailServiceModule.MailService.prototype, 'sendUserVerification')
-      .mockResolvedValue({ ok: true } as any);
+      .spyOn(mailServiceModule.mailService, 'sendUserVerification')
+      .mockResolvedValue(undefined);
 
     const leadRes = await request(app)
       .post('/api/v1/leads')
@@ -103,7 +104,7 @@ describe('Admin verify flow', () => {
     const txRes = await request(app)
       .post(`/api/v1/leads/${leadId}/transactions`)
       .send({ transactionId: 'TX-R1' })
-      .expect(200);
+      .expect(201);
     const txId = txRes.body.data.transactionId;
 
     const token = await getAdminToken();

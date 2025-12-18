@@ -29,7 +29,7 @@ async function migrate() {
         logger.info(`Successfully passed tokens to ${updated} leads.`);
         process.exit(0);
     } catch (error) {
-        console.error('Migration failed:', error);
+        logger.error('Migration failed:', error);
         process.exit(1);
     }
 }

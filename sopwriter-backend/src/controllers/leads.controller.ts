@@ -1,65 +1,55 @@
 import type { Request, Response } from 'express';
-import * as leadService from '../services/lead.service.js';
-import type { IHistoryEntry } from '../models/Lead.js';
-import { MailService } from '../services/mail.service.js';
-import { config_vars } from '../config/env.js';
+import { createLead, getLeadById } from '../services/lead.service.js';
 import { NotFoundError } from '../utils/errors.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
-import { successResponse } from '../utils/responses.js';
-import { HistoryAction } from '../constants/index.js';
 
-const mail = MailService.getInstance();
+import { mailService } from '../services/mail.service.js';
+import { config_vars } from '../config/env.js';
 
-export const createLeadHandler = asyncHandler(
-  async (req: Request, res: Response): Promise<void> => {
-    const payload = (req as any).validatedBody;
-    const lead = await leadService.createLead(payload);
+export const createLeadHandler = async (req: Request, res: Response) => {
+  const payload = req.body;
 
-    // Extract the temp access token attached by service
-    const accessToken = (lead as any)._tempAccessToken;
+  const { lead, isDuplicate } = await createLead(payload);
 
-    // send confirmation email (fire-and-forget)
-    mail
-      .sendLeadConfirmation(lead.email, {
+  if (lead) {
+    try {
+      await mailService.sendLeadConfirmation(lead.email, {
         name: lead.name,
         leadId: lead._id.toString(),
         service: lead.service,
-        adminEmail: mail.adminEmail,
         appUrl: config_vars.app.baseUrl,
-      })
-      .catch(() => { }); // Email failure is non-critical
-
-    // If this was a dedupe (history last item might be DUPLICATE_ATTEMPT), return 200 and note it
-    const isDuplicate =
-      lead.history &&
-      lead.history.some((h: IHistoryEntry) => h.action === HistoryAction.DUPLICATE_ATTEMPT);
-    const statusCode = isDuplicate ? 200 : 201;
-
-    res.status(statusCode).json(successResponse({ leadId: lead._id, token: accessToken }));
+      });
+    } catch (error) {
+      // Log error but don't fail the request
+      // logger.error({ err: error }, 'Failed to send lead confirmation email');
+    }
   }
-);
 
-export const getLeadPublic = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  res.status(isDuplicate ? 200 : 201).json({
+    success: true,
+    data: {
+      leadId: lead._id.toString(),
+      isDuplicate,
+    }
+  });
+}
+
+export const getLeadPublic = async (req: Request, res: Response) => {
   const { leadId } = req.params;
-  const token = (req.query.token as string) || (req.headers['x-access-token'] as string);
 
-  // Token check removed to support ID-based tracking
-  // if (!token) {
-  //   throw new NotFoundError('Lead', leadId);
-  // }
+  const lead = await getLeadById(leadId);
+  if (!lead) {
+    throw new NotFoundError('Lead', leadId);
+  }
 
-  const lead = await leadService.getPublicLead(leadId, token);
-
-  if (!lead) throw new NotFoundError('Lead', leadId);
-
-  const lite = {
-    _id: lead._id,
-    name: lead.name,
-    email: lead.email,
-    service: lead.service,
-    status: lead.status,
-    createdAt: lead.createdAt,
-    // Return token so frontend can persist it if needed (optional)
-  };
-  res.json(successResponse(lite));
-});
+  res.json({
+    success: true,
+    data: {
+      _id: lead._id.toString(),
+      name: lead.name,
+      email: lead.email,
+      service: lead.service,
+      status: lead.status,
+      createdAt: lead.createdAt,
+    }
+  });
+}

@@ -4,6 +4,7 @@ import Service from '../src/models/Service.js';
 import GlobalSettings from '../src/models/GlobalSettings.js';
 
 import { config_vars } from '../src/config/env.js';
+import { logger } from '../src/config/logger.js';
 
 dotenv.config();
 
@@ -30,47 +31,47 @@ const SERVICES = [
 ];
 
 const SETTINGS = [
-    { key: 'contact_phone', value: '+1234567890', type: 'string', description: 'Main support phone number' },
-    { key: 'contact_whatsapp', value: '1234567890', type: 'string', description: 'WhatsApp number (without +)' },
-    { key: 'contact_email', value: 'info@example.com', type: 'string', description: 'General inquiry email' },
-    { key: 'support_email', value: 'support@example.com', type: 'string', description: 'Support email for payments' },
-    { key: 'payment_upi_id', value: 'example@upi', type: 'string', description: 'UPI ID for payments' },
-    { key: 'payment_qr_image', value: '/qr.jpg', type: 'string', description: 'Path to QR code image (relative to public)' },
+    { key: 'contact_phone', value: '+1234567890', description: 'Main support phone number' },
+    { key: 'contact_whatsapp', value: '1234567890', description: 'WhatsApp number (without +)' },
+    { key: 'contact_email', value: 'info@example.com', description: 'General inquiry email' },
+    { key: 'support_email', value: 'support@example.com', description: 'Support email for payments' },
+    { key: 'payment_upi_id', value: 'example@upi', description: 'UPI ID for payments' },
+    { key: 'payment_qr_image', value: '/qr.jpg', description: 'Path to QR code image (relative to public)' },
 ];
 
 async function seed() {
-    console.log('Connecting to', MONGO_URI);
+    logger.info({ uri: MONGO_URI }, 'Connecting to DB');
     await mongoose.connect(MONGO_URI, {});
     try {
         // Seed Services
-        console.log('Seeding Services...');
+        logger.info('Seeding Services...');
         // Clear existing services to ensure clean state with new schema
         await Service.deleteMany({});
-        console.log('Cleared existing services.');
+        logger.info('Cleared existing services.');
 
         for (const s of SERVICES) {
             const doc = new Service(s);
             await doc.save();
-            console.log(`Seeded service ${s.code}`);
+            logger.info(`Seeded service ${s.code}`);
         }
 
         // Seed Settings
-        console.log('Seeding Settings...');
+        logger.info('Seeding Settings...');
         for (const s of SETTINGS) {
             await GlobalSettings.findOneAndUpdate(
                 { key: s.key },
                 { $set: s },
                 { upsert: true, new: true }
             );
-            console.log(`Seeded setting ${s.key}`);
+            logger.info(`Seeded setting ${s.key}`);
         }
 
     } catch (err) {
-        console.error('Seed error', err);
+        logger.error({ err }, 'Seed error');
         process.exitCode = 1;
     } finally {
         await mongoose.disconnect();
-        console.log('Disconnected');
+        logger.info('Disconnected');
     }
 }
 

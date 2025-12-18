@@ -1,92 +1,112 @@
+// src/controllers/admin.controller.ts
 import type { Request, Response } from 'express';
-import Transaction from '../models/Transaction.js';
-import Lead from '../models/Lead.js';
-import AuditLog from '../models/AuditLog.js';
-import * as transactionService from '../services/transaction.service.js';
-import { MailService } from '../services/mail.service.js';
-import { config_vars } from '../config/env.js';
-import { NotFoundError, AuthenticationError } from '../utils/errors.js';
-import { escapeRegex } from '../utils/sanitize.js';
-import { parsePagination, buildPaginationMeta } from '../utils/pagination.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
-import { successResponse, errorResponse } from '../utils/responses.js';
-import { ErrorCode, PAGINATION, TIMEOUT } from '../constants/index.js';
-import { AuthService } from '../services/auth.service.js';
-import { logger } from '../config/logger.js';
 
-const mail = MailService.getInstance();
-const authService = AuthService.getInstance();
+import {
+  loginAdmin,
+  refreshSession,
+  forgotPassword,
+  verifyOtp,
+  resetPassword,
+  revokeRefreshToken,
+} from '../services/auth.service.js';
+
+import {
+  verifyTransaction,
+  findAllTransactions,
+  getTransactionById
+} from '../services/transaction.service.js';
+import { findAllLeads } from '../services/lead.service.js';
+import { mailService } from '../services/mail.service.js';
+import { logAudit } from '../services/audit.service.js';
+
+import { AuditAction } from '../constants/index.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+import {
+  AuthenticationError,
+  ValidationError,
+} from '../utils/errors.js';
+
+import { config_vars } from '../config/env.js';
+
+const isProd = config_vars.nodeEnv === 'production';
+
+const ACCESS_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: isProd ? 'none' as const : 'lax' as const,
+  path: '/',
+  maxAge: 10 * 60 * 1000,
+};
+
+const REFRESH_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: isProd ? 'none' as const : 'lax' as const,
+  path: '/',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
+function setAuthCookies(
+  res: Response,
+  tokens: { accessToken: string; refreshToken: string }
+) {
+  res.cookie('admin_token', tokens.accessToken, ACCESS_COOKIE_OPTIONS);
+  res.cookie('refresh_token', tokens.refreshToken, REFRESH_COOKIE_OPTIONS);
+}
+
+function clearAuthCookies(res: Response) {
+  res.clearCookie('admin_token', {
+    path: '/',
+    secure: true,
+    sameSite: isProd ? 'none' : 'lax'
+  });
+
+  res.clearCookie('refresh_token', {
+    path: '/',
+    secure: true,
+    sameSite: isProd ? 'none' : 'lax'
+  });
+}
 
 export const loginHandler = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const ip = req.ip || 'unknown';
 
-  const result = await authService.login(email, password);
+  const { accessToken, refreshToken, admin } = await loginAdmin(email, password);
 
-  res.cookie('admin_token', result.accessToken, {
-    httpOnly: true,
-    secure: true, // Must be true for SameSite=None
-    sameSite: 'none', // Must be 'none' for cross-site (Vercel -> Render)
-    path: '/',
-    maxAge: 10 * 60 * 1000,
-  });
+  setAuthCookies(res, { accessToken, refreshToken });
 
-  res.cookie('refresh_token', result.refreshToken, {
-    httpOnly: true,
-    secure: true, // Must be true for SameSite=None
-    sameSite: 'none', // Must be 'none' for cross-site (Vercel -> Render)
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
-
-  logger.info({ event: 'login_success', user: email, ip }, 'Admin logged in');
-
-  // Audit Log
-  await AuditLog.create({
-    adminId: result.admin._id,
-    action: 'ADMIN_LOGIN',
+  await logAudit({
+    actorId: admin._id.toString(),
+    actorEmail: admin.email,
+    action: AuditAction.ADMIN_LOGIN,
+    status: 'SUCCESS',
     ip,
     userAgent: req.get('user-agent'),
-    status: 'SUCCESS'
   });
 
-  res.json(successResponse({
-    message: 'Logged in successfully',
-    token: result.accessToken // 1. Return token for fallback
-  }));
-});
-
-export const meHandler = asyncHandler(async (req: Request, res: Response) => {
-  const admin = (req as any).admin;
-  res.json(successResponse({ admin: { id: admin.sub, email: admin.email, role: admin.scope } }));
+  res.json({
+    success: true,
+    data: {
+      admin: {
+        id: admin._id,
+        email: admin.email
+      },
+      token: accessToken,
+    },
+    message: 'Logged in successfully'
+  });
 });
 
 export const logoutHandler = asyncHandler(async (req: Request, res: Response) => {
   const refreshToken = req.cookies.refresh_token;
+
   if (refreshToken) {
-    await authService.revokeRefreshToken(refreshToken);
+    await revokeRefreshToken(refreshToken);
   }
 
-  // Clear cookies with exact same options as set
-  const cookieOptions: any = {
-    path: '/',
-    secure: true,
-    sameSite: 'none'
-  };
-
-  res.clearCookie('admin_token', cookieOptions);
-  res.clearCookie('refresh_token', cookieOptions);
-
-  // Fallbacks for safety
-  res.clearCookie('admin_token', { path: '/' });
-  res.clearCookie('refresh_token', { path: '/' });
-
-  // Cleanup legacy/vendor cookies
-  res.clearCookie('__session');
-  res.clearCookie('__clerk_db_jwt');
-  res.clearCookie('jwt_token');
-
-  res.json(successResponse({ message: 'Logged out' }));
+  clearAuthCookies(res);
+  res.json({ success: true, message: 'Logged out' });
 });
 
 export const refreshHandler = asyncHandler(async (req: Request, res: Response) => {
@@ -95,149 +115,86 @@ export const refreshHandler = asyncHandler(async (req: Request, res: Response) =
     throw new AuthenticationError('Refresh token missing');
   }
 
-  const result = await authService.refreshSession(refreshToken);
+  const { accessToken, refreshToken: newRefresh } =
+    await refreshSession(refreshToken);
 
-  // Force secure settings for refresh as well
-  res.cookie('admin_token', result.accessToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none',
-    path: '/',
-    maxAge: 10 * 60 * 1000,
+  setAuthCookies(res, {
+    accessToken,
+    refreshToken: newRefresh
   });
 
-  res.cookie('refresh_token', result.refreshToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
-
-  res.json(successResponse({
-    message: 'Session refreshed',
-    token: result.accessToken // 2. Return token for fallback
-  }));
+  res.json({ success: true, data: { token: accessToken } });
 });
 
 export const forgotPasswordHandler = asyncHandler(async (req: Request, res: Response) => {
-  const { email } = req.body;
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
-
-  await authService.forgotPassword(email);
-
-  logger.info({ event: 'otp_requested', email, ip }, 'OTP requested');
-
-  res.json(successResponse({ message: 'If the email exists, an OTP has been sent' }));
+  await forgotPassword(req.body.email);
+  res.json({ success: true, message: 'If email exists, OTP sent' });
 });
 
 export const verifyOtpHandler = asyncHandler(async (req: Request, res: Response) => {
-  const { email, otp } = req.body;
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
-
-  const result = await authService.verifyOtp(email, otp);
-
-  logger.info({ event: 'otp_verified', email, ip }, 'OTP verified successfully');
-
-  res.json(successResponse({ resetToken: result.resetToken }));
+  const { resetToken } = await verifyOtp(req.body.email, req.body.otp);
+  res.json({ success: true, data: { resetToken } });
 });
 
 export const resetPasswordHandler = asyncHandler(async (req: Request, res: Response) => {
-  const { resetToken, newPassword } = req.body;
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
-
-  await authService.resetPassword(resetToken, newPassword);
-
-  // Requirement 8: Manual Re-Login. Clear sessions.
-  res.clearCookie('admin_token');
-
-  logger.info({ event: 'password_reset', ip }, 'Password reset successfully');
-
-  // Audit Log (adminId might be inferred from token payload if we had it, but here we just know it happened via OTP)
-  // We can look up admin by resetToken if we decoded it earlier in service, but service handles it.
-  // For now log the IP.
-  await AuditLog.create({
-    action: 'PASSWORD_RESET',
-    ip,
-    userAgent: req.get('user-agent'),
-    status: 'SUCCESS'
-  });
-
-  res.json(
-    successResponse({ message: 'Password reset successfully. Please login with new password.' })
-  );
+  await resetPassword(req.body.resetToken, req.body.newPassword);
+  clearAuthCookies(res);
+  res.json({ success: true, message: 'Password reset successful' });
 });
 
-export const listLeads = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const { page, limit, skip } = parsePagination(req.query);
+export const meHandler = asyncHandler(async (req: Request, res: Response) => {
+  const admin = (req as any).admin;
 
-  const filter: Record<string, any> = {};
-  if (req.query.search) {
-    const search = escapeRegex(req.query.search as string);
-    filter.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { email: { $regex: search, $options: 'i' } },
-      { service: { $regex: search, $options: 'i' } },
-    ];
-  }
-
-  if (req.query.status) {
-    filter.status = req.query.status as string;
-  }
-
-  const [total, data] = await Promise.all([
-    Lead.countDocuments(filter).maxTimeMS(TIMEOUT.DB_QUERY_MS),
-    Lead.find(filter)
-      .select('-history')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean()
-      .maxTimeMS(TIMEOUT.DB_QUERY_MS)
-      .exec(),
-  ]);
-
-  const pagination = buildPaginationMeta({ page, limit, skip }, total);
-  res.json(successResponse({ items: data }, pagination));
+  res.json({
+    success: true,
+    data: {
+      admin: {
+        id: admin.sub,
+        email: admin.email,
+        role: admin.role,
+      },
+    }
+  });
 });
 
-export const listTransactions = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const status = (req.query.status as string) || undefined;
-  const { page, limit, skip } = parsePagination(req.query, {
-    maxLimit: PAGINATION.MAX_TRANSACTIONS_LIMIT,
+export const listLeads = asyncHandler(async (req: Request, res: Response) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 10;
+
+  const result = await findAllLeads(req.query.search as string, { page, limit });
+
+  res.json({
+    success: true,
+    data: {
+      items: result.items,
+    },
+    pagination: {
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+      totalPages: result.totalPages
+    }
+  });
+});
+
+export const listTransactions = asyncHandler(async (req: Request, res: Response) => {
+  const transactions = await findAllTransactions({
+    status: req.query.status as string,
+    leadId: req.query.leadId as string,
   });
 
-  const filter: Record<string, any> = {};
-  if (status) filter.status = status;
-  if (req.query.leadId) filter.leadId = req.query.leadId;
-
-  const [total, docs] = await Promise.all([
-    Transaction.countDocuments(filter),
-    Transaction.find(filter)
-      .populate('leadId', '_id name email service')
-      .sort({ submittedAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean()
-      .exec(),
-  ]);
-
-  const pagination = buildPaginationMeta({ page, limit, skip }, total);
-  res.json(successResponse({ items: docs }, pagination));
+  res.json({ success: true, data: { items: transactions } });
 });
 
 export const getTransactionDetail = asyncHandler(
-  async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params;
-    const tx = await Transaction.findById(id)
-      .populate('leadId')
-      .maxTimeMS(TIMEOUT.DB_QUERY_MS)
-      .lean()
-      .exec();
+  async (req: Request, res: Response) => {
+    const tx = await getTransactionById(req.params.id);
 
-    if (!tx) throw new NotFoundError('Transaction', id);
+    if (!tx) {
+      throw new ValidationError('Transaction not found');
+    }
 
-    res.json(successResponse(tx));
+    res.json({ success: true, data: tx });
   }
 );
 
@@ -245,48 +202,48 @@ export const verifyTransactionHandler = asyncHandler(async (req: Request, res: R
   const { id } = req.params;
   const { action, note } = req.body;
 
-  if (!['VERIFY', 'REJECT'].includes(action)) {
-    res
-      .status(400)
-      .json(errorResponse(ErrorCode.INVALID_ACTION, 'Action must be VERIFY or REJECT'));
-    return;
+  if (action !== 'VERIFY' && action !== 'REJECT') {
+    throw new ValidationError('Invalid action');
   }
 
-  const admin = (req as any).admin || { id: 'unknown' };
-  const result = await transactionService.verifyTransaction(
+  const admin = (req as any).admin;
+
+  const { lead } = await verifyTransaction(
     id,
-    { id: admin.sub || admin.id, email: admin.email },
-    action as 'VERIFY' | 'REJECT',
+    { id: admin.sub, email: admin.email },
+    action,
     note
   );
 
-  if (result.lead) {
-    mail
-      .sendUserVerification(result.lead.email, {
-        name: result.lead.name,
-        leadId: result.lead._id.toString(),
-        status: action === 'VERIFY' ? 'VERIFIED' : 'REJECTED',
-        note,
-        appUrl: config_vars.app.baseUrl,
-      })
-      .catch(() => { });
+  if (lead) {
+    await mailService.sendUserVerification(lead.email, {
+      name: lead.name,
+      leadId: lead._id.toString(),
+      status: action === 'VERIFY' ? 'VERIFIED' : 'REJECTED',
+      note,
+      appUrl: config_vars.app.baseUrl,
+    });
   }
 
-  // Audit Log
-  await AuditLog.create({
-    adminId: admin.adminId || admin.id || admin._id || admin.sub,
-    action: action === 'VERIFY' ? 'TRANSACTION_VERIFY' : 'TRANSACTION_REJECT',
+  await logAudit({
+    actorId: admin.sub,
+    actorEmail: admin.email,
+    action:
+      action === 'VERIFY'
+        ? AuditAction.TRANSACTION_VERIFY
+        : AuditAction.TRANSACTION_REJECT,
     targetId: id,
-    details: { note },
+    status: 'SUCCESS',
     ip: req.ip,
     userAgent: req.get('user-agent'),
-    status: 'SUCCESS'
+    details: { note },
   });
 
-  res.json(
-    successResponse({
+  res.json({
+    success: true,
+    data: {
       transactionId: id,
       status: action === 'VERIFY' ? 'VERIFIED' : 'REJECTED',
-    })
-  );
+    }
+  });
 });

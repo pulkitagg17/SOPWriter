@@ -4,6 +4,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import { createApp } from '../../app.js';
 import * as mailServiceModule from '../../services/mail.service.js';
+import { logger } from '../../config/logger.js';
 
 let mongod: MongoMemoryServer;
 let app: any;
@@ -16,7 +17,7 @@ beforeAll(async () => {
     process.env.APP_BASE_URL = 'http://test.app';
     app = createApp();
   } catch (error) {
-    console.error('Failed to start MongoMemoryServer', error);
+    logger.error({ err: error }, 'Failed to start MongoMemoryServer');
     throw error;
   }
 });
@@ -39,8 +40,8 @@ afterEach(async () => {
 describe('POST /api/leads/:leadId/transactions', () => {
   it('creates a transaction and notifies admin', async () => {
     const spyAdmin = jest
-      .spyOn(mailServiceModule.MailService.prototype, 'sendAdminNotification')
-      .mockResolvedValue({ ok: true } as any);
+      .spyOn(mailServiceModule.mailService, 'sendAdminNotification')
+      .mockResolvedValue(undefined);
     // create a lead first
     const leadRes = await request(app)
       .post('/api/v1/leads')
@@ -57,7 +58,7 @@ describe('POST /api/leads/:leadId/transactions', () => {
     const res = await request(app)
       .post(`/api/v1/leads/${leadId}/transactions`)
       .send(payload)
-      .expect(200);
+      .expect(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.transactionId).toBeDefined();
     expect(spyAdmin).toHaveBeenCalled();

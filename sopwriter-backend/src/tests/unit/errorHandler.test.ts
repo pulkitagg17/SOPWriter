@@ -14,6 +14,6 @@ describe('errorHandler', () => {
     const res = await request(app).get('/err').expect(500);
     expect(res.body.success).toBe(false);
     expect(res.body.code).toBe('INTERNAL_ERROR');
-    expect(res.body.message).toBe('boom');
+    expect(res.body.message).toBe('Internal server error');
   });
 });

@@ -1,26 +1,35 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
-import { SettingType, SettingTypeType } from '../constants/index.js';
+import mongoose, { Schema, Model } from 'mongoose';
 
-export interface IGlobalSettings extends Document {
+export interface IGlobalSetting {
   key: string;
   value: string;
-  type: SettingTypeType;
   description?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const GlobalSettingsSchema = new Schema<IGlobalSettings>(
+const GlobalSettingsSchema = new Schema<IGlobalSetting>(
   {
-    key: { type: String, required: true, unique: true, index: true, trim: true },
-    value: { type: String, required: true },
-    type: { type: String, default: SettingType.STRING, enum: Object.values(SettingType) },
-    description: { type: String },
+    key: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+      trim: true,
+    },
+    value: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+    },
   },
   { timestamps: true }
 );
 
-export const GlobalSettings: Model<IGlobalSettings> =
+export const GlobalSettings: Model<IGlobalSetting> =
   mongoose.models.GlobalSettings ||
-  mongoose.model<IGlobalSettings>('GlobalSettings', GlobalSettingsSchema);
+  mongoose.model<IGlobalSetting>('GlobalSettings', GlobalSettingsSchema);
+
 export default GlobalSettings;

@@ -75,7 +75,6 @@ describe('Leads Controller - Additional Coverage', () => {
         phone: '1234567890',
         service: 'VISA_TOURIST',
         status: 'NEW', // Use correct enum value
-        accessToken,
       });
       const response = await request(app)
         .get(`/api/v1/leads/${lead._id}?token=${accessToken}`)
@@ -121,10 +120,9 @@ describe('Leads Controller - Additional Coverage', () => {
     it('should return 500 for invalid lead ID format', async () => {
       const response = await request(app)
         .get('/api/v1/leads/invalid-id-format?token=dummy_token')
-        .expect(500);
+        .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.code).toBe('INTERNAL_ERROR');
     });
   });
 

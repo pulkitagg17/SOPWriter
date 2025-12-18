@@ -1,13 +1,13 @@
+import mongoose from 'mongoose';
 import { createApp } from './app.js';
 import { connectDatabase } from './config/database.js';
 import { config_vars } from './config/env.js';
 import { logger } from './config/logger.js';
-import mongoose from 'mongoose';
 import type { Server } from 'http';
 
 let server: Server | null = null;
 
-const startServer = async (): Promise<void> => {
+async function start() {
   try {
     await connectDatabase();
 
@@ -16,34 +16,27 @@ const startServer = async (): Promise<void> => {
     server = app.listen(config_vars.port, () => {
       logger.info(
         { port: config_vars.port, env: config_vars.nodeEnv },
-        'Server started successfully'
+        'Server started'
       );
     });
-  } catch (error) {
-    logger.error({ err: error }, 'Failed to start server');
+  } catch (err) {
+    logger.error({ err }, 'Startup failed');
     process.exit(1);
   }
-};
+}
 
-// Graceful shutdown
-const gracefulShutdown = async (signal: string) => {
-  logger.info({ signal }, 'Graceful shutdown initiated');
+async function shutdown(signal: string) {
+  logger.info({ signal }, 'Shutting down');
 
   if (server) {
     server.close();
   }
 
-  try {
-    await mongoose.connection.close();
-    logger.info('MongoDB connection closed');
-    process.exit(0);
-  } catch (error) {
-    logger.error({ err: error }, 'Error during shutdown');
-    process.exit(1);
-  }
-};
+  await mongoose.connection.close();
+  process.exit(0);
+}
 
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
-startServer();
+start();

@@ -34,7 +34,7 @@ describe('Transaction model', () => {
     const saved = await tx.save();
     expect(saved._id).toBeDefined();
     expect(saved.status).toBe('DECLARED');
-    expect(saved.submittedAt).toBeDefined();
+    expect(saved.createdAt).toBeDefined();
   });
 
   it('should fail when leadId is missing', async () => {

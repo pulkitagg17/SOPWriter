@@ -1,175 +1,131 @@
-import sgMail from '@sendgrid/mail';
 import nodemailer from 'nodemailer';
 import { config_vars } from '../config/env.js';
-import { RETRY } from '../constants/index.js';
 import { sanitizeText } from '../utils/sanitize.js';
+import { logger } from '../config/logger.js';
 
-type Provider = 'sendgrid' | 'smtp' | 'memory';
 
-interface MailServiceOptions {
-  from: string;
-  adminEmail: string;
-  provider?: Provider;
-  sendgridApiKey?: string;
-  smtpConfig?: nodemailer.TransportOptions;
-  retryAttempts?: number;
+function createSmtpTransport() {
+  return nodemailer.createTransport({
+    host: config_vars.email.smtp.host,
+    port: config_vars.email.smtp.port,
+    secure: config_vars.email.smtp.secure,
+    auth: {
+      user: config_vars.email.smtp.user,
+      pass: config_vars.email.smtp.pass,
+    },
+  });
 }
 
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+let transporter: nodemailer.Transporter | null = null;
 
-export class MailService {
-  private static instance: MailService | null = null;
-  private from: string;
-  public adminEmail: string;
-  private provider: Provider;
-  private sgKey?: string;
-  private transporter?: nodemailer.Transporter;
-  private retryAttempts: number;
-  public sentMails: any[] = []; // for testing
 
-  constructor(opts: MailServiceOptions) {
-    this.from = opts.from;
-    this.adminEmail = opts.adminEmail;
-    // Default to 'memory' in test environment if not explicitly set
-    if (!opts.provider && config_vars.nodeEnv === 'test') {
-      this.provider = 'memory';
-    } else {
-      this.provider =
-        opts.provider || (config_vars.mail.provider === 'sendgrid' ? 'sendgrid' : 'smtp');
+class MailService {
+  private getTransporter() {
+    if (config_vars.mail.provider === 'memory') {
+      return null;
     }
-
-    this.sgKey = opts.sendgridApiKey || config_vars.mail.sendgridApiKey;
-    this.retryAttempts = opts.retryAttempts ?? RETRY.MAX_ATTEMPTS;
-
-    if (this.provider === 'sendgrid') {
-      if (!this.sgKey) {
-        // Fallback to smtp if API key is missing
-        this.provider = 'smtp';
-      } else {
-        sgMail.setApiKey(this.sgKey);
-      }
+    if (!transporter) {
+      transporter = createSmtpTransport();
     }
-
-    if (this.provider === 'smtp') {
-      const smtpConfig =
-        opts.smtpConfig ||
-        ({
-          host: config_vars.email.smtp.host,
-          port: config_vars.email.smtp.port,
-          secure: config_vars.email.smtp.secure,
-          auth: {
-            user: config_vars.email.smtp.user,
-            pass: config_vars.email.smtp.pass,
-          },
-        } as nodemailer.TransportOptions);
-      this.transporter = nodemailer.createTransport(smtpConfig);
-    }
+    return transporter;
   }
 
-  /**
-   * Get singleton instance of MailService
-   */
-  static getInstance(opts?: MailServiceOptions): MailService {
-    if (!MailService.instance) {
-      MailService.instance = new MailService(
-        opts || {
-          from: config_vars.email.from,
-          adminEmail: config_vars.email.adminNotify,
-        }
+  private async sendMail({ to, subject, text, html }: {
+    to: string;
+    subject: string;
+    text: string;
+    html?: string;
+  }) {
+    const transport = this.getTransporter();
+    if (!transport) return;
+
+    try {
+      await transport.sendMail({
+        from: config_vars.email.from,
+        to,
+        subject,
+        text,
+        html,
+      });
+    } catch (err) {
+      logger.error(
+        {
+          err,
+          to,
+          subject,
+        },
+        'MAIL_SEND_FAILED'
       );
     }
-    return MailService.instance;
   }
 
-  /**
-   * Reset singleton instance (for testing)
-   */
-  static resetInstance(): void {
-    MailService.instance = null;
-  }
+  async sendOtp(to: string, otp: string) {
+    const subject = 'Password Reset OTP';
+    const text = `Your OTP for password reset is: ${otp}
 
-  // low-level send with provider-specific behaviour and retry
-  private async rawSend(to: string, subject: string, text: string, html?: string) {
-    // memory provider for tests
-    if (this.provider === 'memory') {
-      const mail = { to, from: this.from, subject, text, html };
-      this.sentMails.push(mail);
-      return { ok: true, messageId: 'memory-id' };
-    }
+  This OTP is valid for 5 minutes.
+  If you did not request this, please ignore this email.`;
 
-    let attempt = 0;
-    let lastErr: any = null;
-
-    while (attempt < this.retryAttempts) {
-      try {
-        if (this.provider === 'sendgrid') {
-          await sgMail.send({ to, from: this.from, subject, text, html });
-        } else if (this.provider === 'smtp') {
-          if (!this.transporter) throw new Error('SMTP transporter not configured');
-          await this.transporter.sendMail({ to, from: this.from, subject, text, html });
-        }
-        return { ok: true };
-      } catch (err: any) {
-        lastErr = err;
-        attempt++;
-
-        // Retry on transient errors: network errors or 5xx status codes
-        // Network errors don't have response.statusCode, so retry them
-        const isNetworkError = !err?.response?.statusCode;
-        const is5xxError = err?.response?.statusCode >= 500;
-        const isTransient = isNetworkError || is5xxError;
-
-        if (attempt >= this.retryAttempts || !isTransient) break;
-
-        const delay = RETRY.EXPONENTIAL_BASE ** attempt * RETRY.BASE_DELAY_MS;
-        await wait(delay);
-      }
-    }
-    throw lastErr || new Error('Mail send failed');
-  }
-
-  async send(to: string, subject: string, body: string, opts?: { html?: string }) {
-    return this.rawSend(to, subject, body, opts?.html);
-  }
-
-  // Cleanup method to close transporter and prevent connection leaks
-  async close(): Promise<void> {
-    if (this.transporter) {
-      this.transporter.close();
-    }
+    await this.sendMail({ to, subject, text });
   }
 
   async sendLeadConfirmation(
     to: string,
-    vars: { name: string; leadId: string; service: string; adminEmail: string; appUrl: string }
+    vars: {
+      name: string;
+      leadId: string;
+      service: string;
+      appUrl: string;
+    }
   ) {
-    const subject = `Request Received — ${sanitizeText(vars.service)}`;
     const safeName = sanitizeText(vars.name);
+    const safeService = sanitizeText(vars.service);
+
+    const subject = `Request Received — ${safeService}`;
+
     const text = `Hi ${safeName},
 
-We received your request. Your Reference ID is: ${vars.leadId}
+  We received your request for ${safeService}.
+  Your Reference ID is: ${vars.leadId}
 
-Please proceed to payment (or continue later) at: ${vars.appUrl}/payment?leadId=${vars.leadId}
+  Proceed to payment here:
+  ${vars.appUrl}/payment?leadId=${vars.leadId}
 
-If you have any questions, reply to this email.
+  Thanks.`;
 
-Thanks.`;
-    const html = `<p>Hi ${safeName},</p><p>We received your request.</p><p>Your Reference ID is: <strong>${vars.leadId}</strong></p><p>Please <a href="${vars.appUrl}/payment?leadId=${vars.leadId}">click here to complete your payment</a>.</p><p>You can also use this Reference ID to track your application on our website later.</p><p>Thanks.</p>`;
-    return this.send(to, subject, text, { html });
+    const html = `
+      <p>Hi ${safeName},</p>
+      <p>We received your request for <strong>${safeService}</strong>.</p>
+      <p>Your Reference ID is: <strong>${vars.leadId}</strong></p>
+      <p>
+        <a href="${vars.appUrl}/payment?leadId=${vars.leadId}">
+          Click here to complete payment
+        </a>
+      </p>
+      <p>Thanks.</p>
+    `;
+
+    await this.sendMail({ to, subject, text, html });
   }
 
   async sendAdminNotification(vars: {
     transactionId?: string;
     leadId: string;
-    leadName: string;
-    leadEmail: string;
     appUrl: string;
   }) {
-    const subject = `Payment declared: ${sanitizeText(vars.transactionId || '(no-id)')} for lead ${vars.leadId}`;
-    const text = `Transaction declared for lead ${vars.leadId} (${sanitizeText(vars.leadName)} / ${sanitizeText(vars.leadEmail)}).\nView: ${vars.appUrl}/admin/transactions?leadId=${vars.leadId}`;
-    return this.send(this.adminEmail, subject, text);
+    const subject = `Payment declared for Lead ${vars.leadId}`;
+
+    const text = `Transaction declared.
+  Transaction ID: ${sanitizeText(vars.transactionId || 'N/A')}
+
+  Review:
+  ${vars.appUrl}/admin/transactions?leadId=${vars.leadId}`;
+
+    await this.sendMail({
+      to: config_vars.email.adminNotify,
+      subject,
+      text,
+    });
   }
 
   async sendUserVerification(
@@ -182,19 +138,25 @@ Thanks.`;
       appUrl: string;
     }
   ) {
-    const subject = `Payment ${vars.status} for Lead ${vars.leadId}`;
-    const noteText = vars.note ? `Note from admin: ${sanitizeText(vars.note)}\n` : '';
-    const text = `Hi ${sanitizeText(vars.name)},
+    const safeName = sanitizeText(vars.name);
+    const safeNote = vars.note ? sanitizeText(vars.note) : '';
 
-Your payment for lead ${vars.leadId} has been ${vars.status}.
-${noteText}You can view details at ${vars.appUrl}/leads/${vars.leadId}
+    const subject = `Payment ${vars.status} — Reference ${vars.leadId}`;
 
-Thanks.`;
-    return this.send(to, subject, text);
-  }
-  async sendOtp(to: string, otp: string) {
-    const subject = 'Password Reset OTP';
-    const text = `Your OTP for password reset is: ${otp}\n\nThis OTP is valid for 5 minutes.\nIf you did not request this, please ignore this email.`;
-    return this.send(to, subject, text);
+    const text = `Hi ${safeName},
+
+  Your payment for reference ${vars.leadId} has been ${vars.status}.
+  ${safeNote ? `\nNote from admin: ${safeNote}\n` : ''}
+  View details:
+  ${vars.appUrl}/leads/${vars.leadId}
+
+  Thanks.`;
+
+    await this.sendMail({ to, subject, text });
   }
 }
+
+export const mailService = new MailService();
+// Export types
+export { MailService }; // Export class type if needed
+

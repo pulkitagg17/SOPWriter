@@ -1,17 +1,26 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema, Model, Document } from 'mongoose';
 
 export interface IAdmin extends Document {
   email: string;
   passwordHash: string;
+
+  // Login security
   loginAttempts: number;
   lockUntil: Date | null;
+
+  passwordChangedAt: Date | null;
+
+  // OTP / password reset
   otpHash: string | null;
   otpExpires: Date | null;
   otpAttempts: number;
   lastOtpRequest: Date | null;
   otpRequestCount1h: number;
   otpRequestWindowStart: Date | null;
+
+  // Session invalidation
   tokenVersion: number;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,15 +38,23 @@ const AdminSchema = new Schema<IAdmin>(
       type: String,
       required: true,
     },
+
+    // Login brute-force protection
     loginAttempts: {
       type: Number,
-      required: true,
       default: 0,
     },
     lockUntil: {
       type: Date,
       default: null,
     },
+
+    passwordChangedAt: {
+      type: Date,
+      default: null,
+    },
+
+    // OTP-based password reset
     otpHash: {
       type: String,
       default: null,
@@ -62,9 +79,10 @@ const AdminSchema = new Schema<IAdmin>(
       type: Date,
       default: null,
     },
+
+    // Increment to invalidate all existing JWTs
     tokenVersion: {
       type: Number,
-      required: true,
       default: 0,
     },
   },

@@ -6,7 +6,7 @@ import Service from '../../models/Service.js';
 import GlobalSettings from '../../models/GlobalSettings.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
-import { SettingType } from '../../constants/index.js';
+// type: SettingType.STRING, // Removed as unused
 import { config_vars } from '../../config/env.js';
 import Admin from '../../models/Admin.js';
 
@@ -303,8 +303,8 @@ describe('Settings Controller - Admin Settings Management', () => {
 
       it('should return all settings', async () => {
         await GlobalSettings.create([
-          { key: 'contact_phone', value: '+91 98765 43210', type: SettingType.STRING },
-          { key: 'payment_upi_id', value: '919871160227@upi', type: SettingType.STRING },
+          { key: 'contact_phone', value: '+91 98765 43210' },
+          { key: 'payment_upi_id', value: '919871160227@upi' },
         ]);
 
         const response = await request(app)
@@ -329,7 +329,6 @@ describe('Settings Controller - Admin Settings Management', () => {
         await GlobalSettings.create({
           key: 'contact_phone',
           value: '+91 11111 11111',
-          type: SettingType.STRING,
         });
 
         const response = await request(app)
@@ -375,7 +374,6 @@ describe('Settings Controller - Admin Settings Management', () => {
         await GlobalSettings.create({
           key: 'delete_me',
           value: 'to be deleted',
-          type: SettingType.STRING,
         });
 
         const response = await request(app)

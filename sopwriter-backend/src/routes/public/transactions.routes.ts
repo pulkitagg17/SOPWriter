@@ -9,7 +9,7 @@ const router = express.Router({ mergeParams: true });
 router.post(
   '/leads/:leadId/transactions',
   transactionsRateLimiter,
-  validateRequest(createTransactionSchema),
+  validateRequest(createTransactionSchema, 'body'),
   declareTransactionHandler
 );
 

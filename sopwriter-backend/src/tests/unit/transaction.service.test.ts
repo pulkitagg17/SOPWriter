@@ -53,7 +53,7 @@ describe('transaction.service', () => {
     );
     const res = await transactionService.verifyTransaction(
       tx._id.toString(),
-      { id: 'admin1', email: 'a@test' },
+      { id: new mongoose.Types.ObjectId().toString(), email: 'a@test' },
       'VERIFY',
       'ok'
     );

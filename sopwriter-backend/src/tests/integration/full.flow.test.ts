@@ -32,14 +32,14 @@ describe('full integration flow', () => {
   it('lead -> declare -> admin verify', async () => {
     // Spying
     const leadSpy = jest
-      .spyOn(mailModule.MailService.prototype, 'sendLeadConfirmation')
-      .mockResolvedValue({ ok: true } as any);
+      .spyOn(mailModule.mailService, 'sendLeadConfirmation')
+      .mockResolvedValue(undefined);
     const adminSpy = jest
-      .spyOn(mailModule.MailService.prototype, 'sendAdminNotification')
-      .mockResolvedValue({ ok: true } as any);
+      .spyOn(mailModule.mailService, 'sendAdminNotification')
+      .mockResolvedValue(undefined);
     const userVerifySpy = jest
-      .spyOn(mailModule.MailService.prototype, 'sendUserVerification')
-      .mockResolvedValue({ ok: true } as any);
+      .spyOn(mailModule.mailService, 'sendUserVerification')
+      .mockResolvedValue(undefined);
 
     const leadRes = await request(app)
       .post('/api/v1/leads')
@@ -51,7 +51,7 @@ describe('full integration flow', () => {
     const txRes = await request(app)
       .post(`/api/v1/leads/${leadId}/transactions`)
       .send({ transactionId: 'TX-F1' })
-      .expect(200);
+      .expect(201);
     expect(adminSpy).toHaveBeenCalled();
     const txId = txRes.body.data.transactionId;
 

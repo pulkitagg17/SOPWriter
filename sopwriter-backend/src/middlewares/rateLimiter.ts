@@ -1,24 +1,28 @@
 import rateLimit from 'express-rate-limit';
-import { Request, Response } from 'express';
+import type { Request } from 'express';
 import { config_vars } from '../config/env.js';
-import { ErrorCode, RATE_LIMIT } from '../constants/index.js';
-import { errorResponse } from '../utils/responses.js';
 
-/**
- * Common rate limit handler for all rate limiters
- */
-const rateLimitHandler = (_req: Request, res: Response) => {
-  res
-    .status(429)
-    .json(errorResponse(ErrorCode.RATE_LIMIT, 'Too many requests. Please try again later.'));
+const defaultMessage = {
+  success: false,
+  code: 'RATE_LIMIT',
+  message: 'Too many requests. Please try again later.'
 };
+
+
+
+const ipEmailKey = (req: Request, _res: any) => {
+  const email = req.body?.email || 'unknown-email';
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown-ip';
+  return `${ip}:${email.toLowerCase()}`;
+}
 
 export const leadsRateLimiter = rateLimit({
   windowMs: config_vars.rateLimit.windowMs,
   max: config_vars.rateLimit.maxLeads,
   standardHeaders: true,
   legacyHeaders: false,
-  handler: rateLimitHandler,
+  message: defaultMessage,
+  validate: { ip: false },
 });
 
 export const transactionsRateLimiter = rateLimit({
@@ -26,51 +30,82 @@ export const transactionsRateLimiter = rateLimit({
   max: config_vars.rateLimit.maxTransactions,
   standardHeaders: true,
   legacyHeaders: false,
-  handler: rateLimitHandler,
+  message: defaultMessage,
+  validate: { ip: false },
 });
 
 export const loginRateLimiter = rateLimit({
-  windowMs: RATE_LIMIT.LOGIN_WINDOW_MS,
-  max: RATE_LIMIT.LOGIN_MAX_ATTEMPTS,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  keyGenerator: ipEmailKey,
   skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
-  handler: (_req, res) => {
-    res
-      .status(429)
-      .json(
-        errorResponse(ErrorCode.RATE_LIMIT, 'Too many login attempts. Please try again later.')
-      );
+  message: {
+    success: false,
+    code: 'RATE_LIMIT',
+    message: 'Too many login attempts. Please try again later.',
   },
+  validate: { ip: false },
 });
 
-// Rate limiter for forgot-password (prevent OTP spam)
+export const adminActionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: {
+    success: false,
+    code: 'RATE_LIMIT',
+    message: 'Too many admin actions.',
+  },
+  validate: { ip: false },
+})
+
 export const forgotPasswordRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 3, // 3 requests per minute to prevent OTP email spam
+  max: 3,
+  keyGenerator: ipEmailKey,
   standardHeaders: true,
   legacyHeaders: false,
-  handler: (_req, res) => {
-    res
-      .status(429)
-      .json(errorResponse(ErrorCode.RATE_LIMIT, 'Please wait before requesting another OTP.'));
+  message: {
+    success: false,
+    code: 'RATE_LIMIT',
+    message: 'Please wait before requesting another OTP.',
   },
+  validate: { ip: false },
 });
 
-// Rate limiter for verify-otp (allow a few retries for typos)
 export const otpRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 5, // 5 attempts per minute
+  windowMs: 60 * 1000,
+  max: 5,
+  keyGenerator: ipEmailKey,
   standardHeaders: true,
   legacyHeaders: false,
-  handler: rateLimitHandler,
+  message: defaultMessage,
+  validate: { ip: false },
 });
 
-// Rate limiter for reset-password (prevent brute force)
 export const resetPasswordRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 3, // 3 attempts per minute
+  windowMs: 60 * 1000,
+  max: 3,
+  keyGenerator: ipEmailKey,
   standardHeaders: true,
   legacyHeaders: false,
-  handler: rateLimitHandler,
+  message: defaultMessage,
+  validate: { ip: false },
+});
+
+export const adminReadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { ip: false },
+});
+
+export const adminDangerLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { ip: false },
 });

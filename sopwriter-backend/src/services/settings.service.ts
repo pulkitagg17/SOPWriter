@@ -106,8 +106,24 @@ export async function getPublicConfigData() {
         });
     }
 
+    const CATEGORY_META: Record<string, { label: string; description: string }> = {
+        [ServiceCategory.DOCUMENTS]: {
+            label: 'Application Documents',
+            description: 'SOP, LOR, Essays, Article',
+        },
+        [ServiceCategory.PROFILE]: {
+            label: 'Profile Building',
+            description: 'Resume, Interview Prep',
+        },
+        [ServiceCategory.VISA]: {
+            label: 'Visa Preparation',
+            description: 'USA Visa, Australia GTE',
+        },
+    };
+
     const categories = Object.entries(catMap).map(([key, services]) => ({
         key,
+        ...(CATEGORY_META[key] || { label: key, description: '' }),
         services
     }));
 
